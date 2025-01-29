@@ -1,0 +1,64 @@
+name: Deploy Preview
+
+on: [pull_request]
+
+env:
+  NEON_DATABASE_USERNAME: ${{ secrets.PG_USERNAME }}
+  NEON_DATABASE_NAME: ${{ secrets.PG_DATABASE }}
+  NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+  NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
+  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+  # Add these two lines
+  DATABASE_URL: ${{ env.DATABASE_URL }}
+  DIRECT_URL: ${{ env.DIRECT_URL }}
+
+jobs:
+  deploy-preview:
+    permissions: write-all
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      # Install dependencies first
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Get branch name
+        id: branch-name
+        uses: tj-actions/branch-names@v8
+
+      - name: Create Neon Branch
+        id: create-branch
+        uses: neondatabase/create-branch-action@v5
+        with:
+          project_id: ${{ env.NEON_PROJECT_ID }}
+          branch_name: preview/pr-${{ github.event.number }}-${{ steps.branch-name.outputs.current_branch }}
+          username: ${{ env.NEON_DATABASE_USERNAME }}
+          database: ${{ env.NEON_DATABASE_NAME }}
+          api_key: ${{ env.NEON_API_KEY }}
+
+      # Generate Prisma client before Vercel commands
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Pull Vercel Environment Information
+        run: vercel pull --yes --environment=preview --token=${{ env.VERCEL_TOKEN }}
+
+      - name: Build Project Artifacts
+        run: vercel build --token=${{ env.VERCEL_TOKEN }}
+
+      - name: Deploy Preview to Vercel
+        id: deploy
+        run: |
+          DEPLOY_URL=$(vercel deploy --prebuilt --token=${{ env.VERCEL_TOKEN }})
+          echo "preview_url=$DEPLOY_URL" >> $GITHUB_OUTPUT
+
+      - name: Comment on Pull Request
+        uses: thollander/actions-comment-pull-request@v2
+        with:
+          message: |
+            Vercel Preview URL 🚀: ${{ steps.deploy.outputs.preview_url }}
+            Neon branch 🐘: https://console.neon.tech/app/projects/${{ env.NEON_PROJECT_ID }}/branches/${{ steps.create-branch.outputs.branch_id }}
