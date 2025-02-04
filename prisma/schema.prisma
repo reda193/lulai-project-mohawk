@@ -14,39 +14,23 @@ datasource db {
 }
 
 model User {
-  id        Int       @id @default(autoincrement())
-  userId    String    @unique @default(cuid())
-  username  String    @unique
-  email     String    @unique
-  password  String
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  verified  Boolean   @default(false)
-  attempts  Int       @default(0)
-  lastLogin DateTime?
-  sessions  Session[]
-  tokens    Token[]
+  id            Int       @id @default(autoincrement())
+  userId        String    @unique @default(cuid())
+  first_name    String?
+  last_name     String?
+  email         String    @unique
+  emailVerified DateTime? // Added for NextAuth
+  password      String?
+  role          Role      @default(MEMBER)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  verified      Boolean   @default(false)
+  attempts      Int       @default(0)
+  lastLogin     DateTime?
 }
 
-model Session {
-  id           String   @id @default(cuid())
-  userId       String   
-  refreshToken String   @unique
-  expiresAt    DateTime
-  createdAt    DateTime @default(now())
-  lastAccess   DateTime @updatedAt
-  ipAddress    String?
-  deviceInfo   String?
-  isValid      Boolean  @default(true)
-  user         User     @relation(fields: [userId], references: [userId])
+enum Role {
+  ADMIN
+  MEMBER
 }
 
-model Token {
-  id        String   @id @default(cuid())
-  token     String   @unique
-  userId    String
-  expiresAt DateTime
-  issuedAt  DateTime @default(now())
-  isRevoked Boolean  @default(false)
-  user      User     @relation(fields: [userId], references: [userId])
-}

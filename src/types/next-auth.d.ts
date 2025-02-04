@@ -1,16 +1,19 @@
-import type { _NextAuth } from "next-auth"
+import type { NextAuth as _NextAuth } from "next-auth"
 
 declare module "next-auth" {
-  
   interface User {
-    username: string
+    first_name: string
+    role: string
   }
+
   interface Session {
     user: User & {
-      username: string
+      first_name: string
+      role: string
     }
     token: {
-      username: string
+      first_name: string
+      role: string
     }
   }
 }
