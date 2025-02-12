@@ -30,7 +30,7 @@ const updateBotSchema = z.object({
 
 export async function PATCH(
     req: Request,
-    context: { params: { botId: string } }
+    context: { params: Promise<{ botId: string }> }
 ) {
     try {
         const session = await getServerSession(authOptions);
