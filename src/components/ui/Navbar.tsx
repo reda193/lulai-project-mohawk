@@ -18,7 +18,7 @@ const Nav = async () => {
             {session?.user ? (
               <div className="flex items-center gap-4">
                 <span className="text-sm text-gray-600">
-                  Welcome, {session.user.name}
+                  Welcome, {session.user.first_name}
                 </span>
                 <Useracountnav />
               </div>

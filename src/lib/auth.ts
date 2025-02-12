@@ -37,30 +37,61 @@ export const authOptions: NextAuthOptions = {
                 password: { label: "Password", type: "password" }
             },
             async authorize(credentials): Promise<User | null> {
-                if (!credentials?.email || !credentials?.password) {
-                    return null;
+                try {
+                    console.log("Database URL:", process.env.DATABASE_URL); // Check which database you're connecting to
+                    const user = await db.user.findUnique({
+                        where: { email: "mohamed.reda33@outlook.com" }
+                      });
+                      console.log(user);
+                    // Log incoming credentials (remove in production)
+                    console.log("Authorize attempt with credentials:", {
+                        email: credentials?.email,
+                        hasPassword: !!credentials?.password
+                    });
+            
+                    if (!credentials?.email || !credentials?.password) {
+                        throw new Error("Missing credentials");
+                    }
+            
+                    const existingUser = await db.user.findUnique({
+                        where: { email: credentials.email }
+                    });
+            
+                    // Log user found status (remove in production)
+                    console.log("User lookup result:", {
+                        userFound: !!existingUser,
+                        hasPassword: !!existingUser?.password
+                    });
+            
+                    if (!existingUser) {
+                        throw new Error("User not found");
+                    }
+            
+                    if (!existingUser.password) {
+                        throw new Error("Please use Google login");
+                    }
+            
+                    const passwordMatch = await compare(credentials.password, existingUser.password);
+            
+                    // Log password match result (remove in production)
+                    console.log("Password match result:", passwordMatch);
+            
+                    if (!passwordMatch) {
+                        throw new Error("Invalid password");
+                    }
+            
+                    return {
+                        id: existingUser.userId,
+                        email: existingUser.email,
+                        first_name: existingUser.first_name || null,
+                        role: existingUser.role || "MEMBER", 
+                    } as User;
+                } catch (error) {
+                    // Log any errors that occur
+                    console.error("Auth error:", error);
+                    // Re-throw the error to be handled by NextAuth
+                    throw error;
                 }
-
-                const existingUser = await db.user.findUnique({
-                    where: { email: credentials.email }
-                });
-
-                if (!existingUser || !existingUser.password) {
-                    return null;
-                }
-
-                const passwordMatch = await compare(credentials.password, existingUser.password);
-
-                if (!passwordMatch) {
-                    return null;
-                }
-
-                return {
-                    id: existingUser.userId,
-                    email: existingUser.email,
-                    name: existingUser.first_name || null,
-                    role: existingUser.role || "MEMBER", 
-                } as User;
             }
         })
     ],
