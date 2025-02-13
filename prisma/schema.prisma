@@ -76,7 +76,6 @@ model Bot_Appearance {
   id                   Int     @id @default(autoincrement())
   bot_id               String  @unique
   bot                 Bot     @relation(fields: [bot_id], references: [id], onDelete: Cascade)
-
   company_logo       String?  // URL or file path to the company logo
   bot_avatar         String?  // URL or file path to the bot's avatar
   accent_color       String?  // Hex code for UI accent color

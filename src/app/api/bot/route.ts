@@ -24,10 +24,9 @@ const createBotSchema = z.object({
 
 export async function POST(req: Request) {
     try {
-        // Check authentication
         const session = await getServerSession(authOptions);
 
-        if (!session) {
+        if (!session || !session.user.email) {
             return NextResponse.json(
                 { error: "Unauthorized" },
                 { status: 401 }
