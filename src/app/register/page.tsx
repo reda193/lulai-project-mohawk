@@ -1,7 +1,7 @@
 'use client';
 import { useState, ChangeEvent, FormEvent } from "react"
 import { useRouter } from "next/navigation";
-
+import Link from "next/link";
 interface ValidationError {
   path: string[];
   message: string;
@@ -345,6 +345,16 @@ export default function RegisterPage() {
                             {isSubmitting ? 'Creating account...' : 'Create account'}
                         </button>
                     </div>
+
+                    <p className="text-sm text-center text-gray-600">
+                    Already got an account?{' '}
+                    <Link 
+                        href="/login" 
+                        className="font-medium text-indigo-600 hover:text-indigo-500 transition-colors"
+                    >
+                        Please sign in
+                    </Link>
+                </p>
                 </form>
             </div>
         </div>
