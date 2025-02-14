@@ -1,5 +1,27 @@
 -- CreateEnum
+CREATE TYPE "Role" AS ENUM ('ADMIN', 'MEMBER');
+
+-- CreateEnum
 CREATE TYPE "BotModel" AS ENUM ('GPT_3_5_TURBO', 'GPT_4', 'CLAUDE_3_OPUS', 'CLAUDE_3_SONNET', 'CLAUDE_3_HAIKU', 'GEMINI_PRO');
+
+-- CreateTable
+CREATE TABLE "User" (
+    "id" SERIAL NOT NULL,
+    "userId" TEXT NOT NULL,
+    "first_name" TEXT,
+    "last_name" TEXT,
+    "email" TEXT NOT NULL,
+    "emailVerified" TIMESTAMP(3),
+    "password" TEXT,
+    "role" "Role" NOT NULL DEFAULT 'MEMBER',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "verified" BOOLEAN NOT NULL DEFAULT false,
+    "attempts" INTEGER NOT NULL DEFAULT 0,
+    "lastLogin" TIMESTAMP(3),
+
+    CONSTRAINT "User_pkey" PRIMARY KEY ("id")
+);
 
 -- CreateTable
 CREATE TABLE "Account" (
@@ -48,6 +70,29 @@ CREATE TABLE "Bot" (
     CONSTRAINT "Bot_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "Bot_Appearance" (
+    "id" SERIAL NOT NULL,
+    "bot_id" TEXT NOT NULL,
+    "company_logo" TEXT,
+    "bot_avatar" TEXT,
+    "accent_color" TEXT,
+    "widget_icon" TEXT,
+    "widget_position" TEXT,
+    "input_placeholder" TEXT,
+    "branding_enabled" BOOLEAN NOT NULL DEFAULT true,
+    "widget_open_by_default" BOOLEAN NOT NULL DEFAULT false,
+    "starter_questions" BOOLEAN DEFAULT true,
+
+    CONSTRAINT "Bot_Appearance_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "User_userId_key" ON "User"("userId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
+
 -- CreateIndex
 CREATE UNIQUE INDEX "Account_provider_providerAccountId_key" ON "Account"("provider", "providerAccountId");
 
@@ -57,6 +102,12 @@ CREATE UNIQUE INDEX "Session_sessionToken_key" ON "Session"("sessionToken");
 -- CreateIndex
 CREATE INDEX "Bot_creator_id_idx" ON "Bot"("creator_id");
 
+-- CreateIndex
+CREATE UNIQUE INDEX "Bot_Appearance_bot_id_key" ON "Bot_Appearance"("bot_id");
+
+-- CreateIndex
+CREATE INDEX "Bot_Appearance_bot_id_idx" ON "Bot_Appearance"("bot_id");
+
 -- AddForeignKey
 ALTER TABLE "Account" ADD CONSTRAINT "Account_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
@@ -65,3 +116,6 @@ ALTER TABLE "Session" ADD CONSTRAINT "Session_userId_fkey" FOREIGN KEY ("userId"
 
 -- AddForeignKey
 ALTER TABLE "Bot" ADD CONSTRAINT "Bot_creator_id_fkey" FOREIGN KEY ("creator_id") REFERENCES "User"("userId") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Bot_Appearance" ADD CONSTRAINT "Bot_Appearance_bot_id_fkey" FOREIGN KEY ("bot_id") REFERENCES "Bot"("id") ON DELETE CASCADE ON UPDATE CASCADE;
