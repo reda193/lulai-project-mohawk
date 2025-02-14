@@ -34,7 +34,7 @@ const Nav = async () => {
                   href="/register"
                   className="text-sm font-medium bg-[#6366F1] text-white px-6 py-2 rounded-md hover:bg-[#4F46E5] transition-all"
                 >
-                  Register
+                  Sign Up
                 </Link>
               </>
             )}
