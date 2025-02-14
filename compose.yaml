@@ -1,0 +1,27 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_PASSWORD: example
+      POSTGRES_DB: dev-db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  app:
+    build: .  # This will use your local Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: "postgresql://postgres:example@db:5432/dev-db"
+    depends_on:
+      - db
+    volumes:
+      - .:/app  # Mount current directory to /app in container
+      - /app/node_modules  # Keep node_modules in container
+    command: sh -c "npx prisma generate && npx prisma migrate deploy && npm run dev"  # Changed to dev for development
+
+volumes:
+  postgres_data:
