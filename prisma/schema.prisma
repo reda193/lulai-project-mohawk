@@ -22,8 +22,8 @@ model User {
   attempts      Int       @default(0)
   lastLogin     DateTime?
   accounts      Account[]
+  bots          Bot[]
   sessions      Session[]
-  bots          Bot[]     // New relation to bots
 }
 
 model Account {
@@ -32,12 +32,12 @@ model Account {
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
+  refresh_token     String?
+  access_token      String?
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? @db.Text
+  id_token          String?
   session_state     String?
   user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -53,42 +53,41 @@ model Session {
 }
 
 model Bot {
-  id                   String    @id @default(cuid())
+  id                   String          @id @default(cuid())
   bot_name             String
-  description          String?   @db.Text
-  purpose              String?   @db.Text
+  description          String?
+  purpose              String?
   company_size         String?
   company_type         String?
   use_case_category    String?
-  use_case_description String?   @db.Text
+  use_case_description String?
   target_audience      String?
   privacy_level        String?
-  model_type           BotModel  @default(GPT_3_5_TURBO)
-  created_at           DateTime  @default(now())
-  creator_id           String 
-  creator              User      @relation(fields: [creator_id], references: [userId])
+  model_type           BotModel        @default(GPT_3_5_TURBO)
+  created_at           DateTime        @default(now())
+  creator_id           String
+  creator              User            @relation(fields: [creator_id], references: [userId])
+  appearance           Bot_Appearance?
 
-  appearance  Bot_Appearance[]
   @@index([creator_id])
 }
 
 model Bot_Appearance {
-  id                   Int     @id @default(autoincrement())
-  bot_id               String  @unique
-  bot                 Bot     @relation(fields: [bot_id], references: [id], onDelete: Cascade)
-  company_logo       String?  // URL or file path to the company logo
-  bot_avatar         String?  // URL or file path to the bot's avatar
-  accent_color       String?  // Hex code for UI accent color
-  widget_icon        String?  // URL or file path to the widget icon
-  widget_position    String?  // "bottom-right", "bottom-left", "top-right", "top-left", etc.
-  input_placeholder  String?  // Placeholder text for user input
-  branding_enabled   Boolean  @default(true) // Show/hide branding
-  widget_open_by_default Boolean @default(false) // Whether the widget starts open
-  starter_questions    Boolean?  @default(true)
+  id                     Int      @id @default(autoincrement())
+  bot_id                 String   @unique
+  company_logo           String?
+  bot_avatar             String?
+  accent_color           String?
+  widget_icon            String?
+  widget_position        String?
+  input_placeholder      String?
+  branding_enabled       Boolean  @default(true)
+  widget_open_by_default Boolean  @default(false)
+  starter_questions      Boolean? @default(true)
+  bot                    Bot      @relation(fields: [bot_id], references: [id], onDelete: Cascade)
 
   @@index([bot_id])
 }
-
 
 enum Role {
   ADMIN

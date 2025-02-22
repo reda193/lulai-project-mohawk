@@ -2,8 +2,7 @@
 
 import { authOptions } from "@/lib/auth";
 import { getServerSession } from "next-auth";
-import Analytics from "@/components/dashboard/Analytics";
-import Customers from "@/components/dashboard/Customers";
+import Home from "@/components/dashboard/Home";
 
 const Admin = async () => {
   const session = await getServerSession(authOptions);
@@ -16,7 +15,7 @@ const Admin = async () => {
     );
   }
 
-  if (session?.user.role !== "ADMIN") {
+  if (session?.user.role !== "ADMIN" && session?.user.role !== "SUPER_ADMIN") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-200">
         <h1 className="text-4xl font-bold">Unauthorized Access</h1>
@@ -25,10 +24,9 @@ const Admin = async () => {
   }
 
   return (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Analytics />
-        <Customers />
-      </div>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <Home />
+    </div>
   );
 };
 

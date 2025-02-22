@@ -29,7 +29,6 @@ export default async function Home() {
               <div className="min-h-screen flex items-center justify-center bg-stone-200">
                   <h1 className="text-4xl font-bold tracking-tight text-gray-900">
                       Super Admin Dashboard - Welcome back {session?.user.first_name}
-                      <Sidebar />
                   </h1>
               </div>
           </>

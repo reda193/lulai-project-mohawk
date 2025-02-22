@@ -3,6 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Provider from "@/components/ui/Provider";
 import Nav from "@/components/ui/Navbar";
+import Sidebar from "@/components/ui/Sidebar";
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -30,7 +32,10 @@ export default function RootLayout({
       >
         <Provider>
           <Nav />
-          {children}
+          <div className="flex">
+            <Sidebar /> {/* Sidebar on the left */}
+            <main className="flex-1 p-5">{children}</main> {/* Page content */}
+          </div>
         </Provider>
       </body>
     </html>
