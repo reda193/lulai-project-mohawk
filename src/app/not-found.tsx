@@ -2,6 +2,5 @@ export const dynamic = "force-dynamic";
 import { redirect } from "next/navigation";
 
 export default function NotFound() {
-  redirect("/home");
-  return <div></div>;
+  return <div>asdas</div>;
 }
