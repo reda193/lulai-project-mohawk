@@ -13,7 +13,7 @@ const Admin = async () => {
                 <Nav />
                 <div className="min-h-screen flex items-center justify-center bg-stone-200">
                     <h1 className="text-4xl font-bold tracking-tight text-gray-900">
-                        Please login to view this page
+                        Please ddd to ddd this page
                     </h1>
                 </div>
             </>

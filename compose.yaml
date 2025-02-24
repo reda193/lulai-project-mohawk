@@ -10,7 +10,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
 
   app:
-    build: .  # This will use your local Dockerfile
+    build: .  
     ports:
       - "3000:3000"
     environment:
@@ -19,9 +19,9 @@ services:
     depends_on:
       - db
     volumes:
-      - .:/app  # Mount current directory to /app in container
-      - /app/node_modules  # Keep node_modules in container
-    command: sh -c "npx prisma generate && npx prisma migrate deploy && npm run dev"  # Changed to dev for development
+      - .:/app  
+      - /app/node_modules  
+    command: sh -c "npx prisma generate && npx prisma migrate deploy && npm run dev"  
 
 volumes:
   postgres_data:
