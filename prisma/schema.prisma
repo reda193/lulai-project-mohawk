@@ -7,6 +7,60 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model UserOnboarding {
+  id                Int       @id @default(autoincrement())
+  userId           Int       @unique
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  completed        Boolean   @default(false)
+  discovery_source String?
+  switching_from   String?
+  completed_at     DateTime?
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+}
+
+model Subscription {
+  id              Int       @id @default(autoincrement())
+  userId          Int       @unique
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan_type       PlanType  @default(FREE)
+  status          SubStatus @default(ACTIVE)
+  current_period_start DateTime @default(now())
+  current_period_end   DateTime?
+  cancel_at_period_end Boolean  @default(false)
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+  subscription_items SubscriptionItem[]
+}
+
+model SubscriptionItem {
+  id              Int          @id @default(autoincrement())
+  subscriptionId  Int
+  subscription    Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  price_id        String       // Reference to your payment provider's price ID
+  quantity        Int          @default(1)
+  created_at      DateTime     @default(now())
+  updated_at      DateTime     @updatedAt
+
+  @@index([subscriptionId])
+}
+
+enum PlanType {
+  FREE
+  BASIC
+  PRO
+}
+
+enum SubStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  INCOMPLETE
+  INCOMPLETE_EXPIRED
+  TRIALING
+  UNPAID
+}
+
 model User {
   id            Int       @id @default(autoincrement())
   userId        String    @unique @default(cuid())
@@ -21,9 +75,11 @@ model User {
   verified      Boolean   @default(false)
   attempts      Int       @default(0)
   lastLogin     DateTime?
+  onboarding    UserOnboarding?
+  subscription  Subscription?
   accounts      Account[]
   sessions      Session[]
-  bots          Bot[]     // New relation to bots
+  bots          Bot[]
 }
 
 model Account {
@@ -53,42 +109,149 @@ model Session {
 }
 
 model Bot {
-  id                   String    @id @default(cuid())
+  id                   String              @id @default(cuid())
   bot_name             String
-  description          String?   @db.Text
-  purpose              String?   @db.Text
+  description          String?             @db.Text
+  purpose              String?             @db.Text
   company_size         String?
   company_type         String?
   use_case_category    String?
-  use_case_description String?   @db.Text
+  use_case_description String?             @db.Text
   target_audience      String?
   privacy_level        String?
-  model_type           BotModel  @default(GPT_3_5_TURBO)
-  created_at           DateTime  @default(now())
-  creator_id           String 
-  creator              User      @relation(fields: [creator_id], references: [userId])
+  model_type           BotModel            @default(GPT_3_5_TURBO)
+  created_at           DateTime            @default(now())
+  creator_id           String
+  creator              User                @relation(fields: [creator_id], references: [userId])
+  appearance           Bot_Appearance[]
+  conversations        Conversation[]
+  training_coverage    Training_Coverage[]
+  bot_qa               Bot_QA[]
+  bot_training         Bot_Training[]
 
-  appearance  Bot_Appearance[]
   @@index([creator_id])
 }
 
 model Bot_Appearance {
-  id                   Int     @id @default(autoincrement())
-  bot_id               String  @unique
-  bot                 Bot     @relation(fields: [bot_id], references: [id], onDelete: Cascade)
-  company_logo       String?  // URL or file path to the company logo
-  bot_avatar         String?  // URL or file path to the bot's avatar
-  accent_color       String?  // Hex code for UI accent color
-  widget_icon        String?  // URL or file path to the widget icon
-  widget_position    String?  // "bottom-right", "bottom-left", "top-right", "top-left", etc.
-  input_placeholder  String?  // Placeholder text for user input
-  branding_enabled   Boolean  @default(true) // Show/hide branding
-  widget_open_by_default Boolean @default(false) // Whether the widget starts open
-  starter_questions    Boolean?  @default(true)
+  id                     Int      @id @default(autoincrement())
+  bot_id                 String   @unique
+  bot                    Bot      @relation(fields: [bot_id], references: [id], onDelete: Cascade)
+  company_logo           String?
+  bot_avatar             String?
+  accent_color           String?
+  widget_icon            String?
+  widget_position        String?
+  input_placeholder      String?
+  branding_enabled       Boolean  @default(true)
+  widget_open_by_default Boolean  @default(false)
+  starter_questions      Boolean? @default(true)
 
   @@index([bot_id])
 }
 
+model Bot_QA {
+  id         String   @id @default(cuid())
+  bot_id     String
+  bot        Bot      @relation(fields: [bot_id], references: [id])
+  question   String
+  answer     String
+  category   String?
+  created_at DateTime @default(now())
+  is_active  Boolean  @default(true)
+
+  @@index([bot_id])
+}
+
+model Bot_Training {
+  id             Int      @id @default(autoincrement())
+  bot_id         String
+  bot            Bot      @relation(fields: [bot_id], references: [id])
+  prompt_type    String
+  prompt_content String
+  category       String?
+  context        String?
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  @@index([bot_id])
+}
+
+model Training_Coverage {
+  id                   String   @id @default(cuid())
+  bot_id               String
+  bot                  Bot      @relation(fields: [bot_id], references: [id])
+  total_unique_queries Int
+  covered_intents      Int
+  measure_at           DateTime @default(now())
+
+  @@index([bot_id])
+}
+
+model Conversation {
+  id                String          @id @default(cuid())
+  bot_id            String
+  bot               Bot             @relation(fields: [bot_id], references: [id])
+  start_time        DateTime        @default(now())
+  end_time          DateTime?
+  escalated         Boolean         @default(false)
+  resolution_status String?
+  minutes           Int?
+  sentiment_score   Float?
+  messages          Conv_Messages[]
+  csat              Csat[]
+
+  @@index([bot_id])
+}
+
+model Conv_Messages {
+  id                   String                @id @default(cuid())
+  conversation_id      String
+  conversation         Conversation          @relation(fields: [conversation_id], references: [id])
+  sender_type          String
+  message_text         String
+  sent_at              DateTime              @default(now())
+  response_time        Int?
+  used_knowledge_base  Boolean               @default(false)
+  knowledge_queries    Knowledge_Queries[]
+  unrecognized_queries UnrecognizedQueries[]
+
+  @@index([conversation_id])
+}
+
+model Knowledge_Queries {
+  id               String        @id @default(cuid())
+  message_id       String
+  message          Conv_Messages @relation(fields: [message_id], references: [id])
+  query_text       String
+  was_successful   Boolean
+  response_score   Float?
+  confidence_score Float?
+
+  @@index([message_id])
+}
+
+model UnrecognizedQueries {
+  id            String        @id @default(cuid())
+  message_id    String
+  message       Conv_Messages @relation(fields: [message_id], references: [id])
+  query_text    String
+  frequency     Int           @default(1)
+  first_seen_at DateTime      @default(now())
+  last_seen_at  DateTime      @default(now())
+
+  @@index([message_id])
+}
+
+model Csat {
+  id              String       @id @default(cuid())
+  conversation_id String
+  conversation    Conversation @relation(fields: [conversation_id], references: [id])
+  rating_score    Int
+  feedback_at     DateTime     @default(now())
+  submitted_at    DateTime     @default(now())
+
+  @@index([conversation_id])
+}
 
 enum Role {
   ADMIN

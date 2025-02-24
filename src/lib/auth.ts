@@ -5,6 +5,7 @@ import GoogleProvider from "next-auth/providers/google";
 import { db } from "./db";
 import { compare } from "bcryptjs";
 import type { User } from "next-auth";
+import { PlanType, SubStatus } from "@prisma/client";
 
 export const authOptions: NextAuthOptions = {
     adapter: PrismaAdapter(db),
@@ -28,6 +29,15 @@ export const authOptions: NextAuthOptions = {
                     last_name: profile.family_name,
                     emailVerified: new Date().toISOString(),
                     role: "MEMBER",
+                    // Add the missing required properties:
+                    hasCompletedOnboarding: false, // Default value for new Google signups
+                    subscription: {
+                        planType: 'FREE' as PlanType,
+                        status: 'ACTIVE' as SubStatus,
+                        currentPeriodEnd: null,
+                        cancelAtPeriodEnd: false
+                    }
+                    // Optional properties can remain undefined
                 }
             }
         }),
@@ -39,29 +49,20 @@ export const authOptions: NextAuthOptions = {
             },
             async authorize(credentials): Promise<User | null> {
                 try {
-                    console.log("Database URL:", process.env.DATABASE_URL); // Check which database you're connecting to
-                    const user = await db.user.findUnique({
-                        where: { email: "mohamed.reda33@outlook.com" }
-                      });
-                      console.log(user);
-                    // Log incoming credentials (remove in production)
-                    console.log("Authorize attempt with credentials:", {
-                        email: credentials?.email,
-                        hasPassword: !!credentials?.password
-                    });
-            
                     if (!credentials?.email || !credentials?.password) {
                         throw new Error("Missing credentials");
                     }
             
                     const existingUser = await db.user.findUnique({
-                        where: { email: credentials.email }
-                    });
-            
-                    // Log user found status (remove in production)
-                    console.log("User lookup result:", {
-                        userFound: !!existingUser,
-                        hasPassword: !!existingUser?.password
+                        where: { email: credentials.email },
+                        include: {
+                            onboarding: true,
+                            subscription: {
+                                include: {
+                                    subscription_items: true
+                                }
+                            }
+                        }
                     });
             
                     if (!existingUser) {
@@ -74,9 +75,6 @@ export const authOptions: NextAuthOptions = {
             
                     const passwordMatch = await compare(credentials.password, existingUser.password);
             
-                    // Log password match result (remove in production)
-                    console.log("Password match result:", passwordMatch);
-            
                     if (!passwordMatch) {
                         throw new Error("Invalid password");
                     }
@@ -84,13 +82,26 @@ export const authOptions: NextAuthOptions = {
                     return {
                         id: existingUser.userId,
                         email: existingUser.email,
-                        first_name: existingUser.first_name || null,
-                        role: existingUser.role || "MEMBER", 
+                        first_name: existingUser.first_name,
+                        last_name: existingUser.last_name,
+                        role: existingUser.role,
+                        hasCompletedOnboarding: existingUser.onboarding?.completed || false,
+                        discoverySource: existingUser.onboarding?.discovery_source,
+                        switchingFrom: existingUser.onboarding?.switching_from,
+                        subscription: existingUser.subscription ? {
+                            planType: existingUser.subscription.plan_type,
+                            status: existingUser.subscription.status,
+                            currentPeriodEnd: existingUser.subscription.current_period_end,
+                            cancelAtPeriodEnd: existingUser.subscription.cancel_at_period_end
+                        } : {
+                            planType: 'FREE' as PlanType,
+                            status: 'ACTIVE' as SubStatus,
+                            currentPeriodEnd: null,
+                            cancelAtPeriodEnd: false
+                        }
                     } as User;
                 } catch (error) {
-                    // Log any errors that occur
                     console.error("Auth error:", error);
-                    // Re-throw the error to be handled by NextAuth
                     throw error;
                 }
             }
@@ -100,17 +111,26 @@ export const authOptions: NextAuthOptions = {
         async jwt({ token, user }) {
             if (user) {
                 token.first_name = user.first_name;
+                token.last_name = user.last_name;
                 token.role = user.role;
+                token.hasCompletedOnboarding = user.hasCompletedOnboarding;
+                token.discoverySource = user.discoverySource;
+                token.switchingFrom = user.switchingFrom;
+                token.subscription = user.subscription;
             }
             return token;
         },
         async session({ session, token }) {
             if (session.user) {
-                session.user.first_name = token.first_name as string;
-                session.user.role = token.role as string;
+                session.user.first_name = token.first_name;
+                session.user.last_name = token.last_name;
+                session.user.role = token.role;
+                session.user.hasCompletedOnboarding = token.hasCompletedOnboarding;
+                session.user.discoverySource = token.discoverySource;
+                session.user.switchingFrom = token.switchingFrom;
+                session.user.subscription = token.subscription;
             }
             return session;
         },
-
     }
 }
