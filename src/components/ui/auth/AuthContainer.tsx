@@ -33,7 +33,12 @@ const AuthContainer: React.FC<AuthContainerProps> = ({
         />
       )}
 
-
+      {mode === 'SIGNUP' && (
+        <SignUpForm
+          onSubmit={onSignUp || (async () => {})} 
+          onBack={() => handleSwitchMode('LOGIN_OPTIONS')}
+        />
+      )}
     </div>
   );
 };
