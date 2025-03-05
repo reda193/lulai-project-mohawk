@@ -13,7 +13,7 @@ CREATE TYPE "BotModel" AS ENUM ('GPT_3_5_TURBO', 'GPT_4', 'CLAUDE_3_OPUS', 'CLAU
 -- CreateTable
 CREATE TABLE "UserOnboarding" (
     "id" SERIAL NOT NULL,
-    "userId" TEXT NOT NULL,
+    "userId" INTEGER NOT NULL,
     "completed" BOOLEAN NOT NULL DEFAULT false,
     "discovery_source" TEXT,
     "switching_from" TEXT,
@@ -27,7 +27,7 @@ CREATE TABLE "UserOnboarding" (
 -- CreateTable
 CREATE TABLE "Subscription" (
     "id" SERIAL NOT NULL,
-    "userId" TEXT NOT NULL,
+    "userId" INTEGER NOT NULL,
     "plan_type" "PlanType" NOT NULL DEFAULT 'FREE',
     "status" "SubStatus" NOT NULL DEFAULT 'ACTIVE',
     "current_period_start" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -289,10 +289,10 @@ CREATE INDEX "UnrecognizedQueries_message_id_idx" ON "UnrecognizedQueries"("mess
 CREATE INDEX "Csat_conversation_id_idx" ON "Csat"("conversation_id");
 
 -- AddForeignKey
-ALTER TABLE "UserOnboarding" ADD CONSTRAINT "UserOnboarding_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("userId") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "UserOnboarding" ADD CONSTRAINT "UserOnboarding_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Subscription" ADD CONSTRAINT "Subscription_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("userId") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "Subscription" ADD CONSTRAINT "Subscription_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "SubscriptionItem" ADD CONSTRAINT "SubscriptionItem_subscriptionId_fkey" FOREIGN KEY ("subscriptionId") REFERENCES "Subscription"("id") ON DELETE CASCADE ON UPDATE CASCADE;

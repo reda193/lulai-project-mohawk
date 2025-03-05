@@ -1,13 +1,14 @@
 import { db } from "@/lib/db";
 import { hash } from "bcryptjs";
-import { NextResponse } from "next/server"
+import { NextResponse } from "next/server";
 import * as z from 'zod';
 
 const userSchema = z.object({
     first_name: z.string()
         .min(2, 'First name must be at least 2 characters'),
     last_name: z.string()
-        .min(2, 'Last name must be at least 2 characters'), 
+        .min(2, 'Last name must be at least 2 characters'),
+    
     email: z.string()
         .email('Please enter a valid email address'),
     password: z.string()
@@ -21,11 +22,11 @@ export async function POST(req: Request) {
     try {
         const body = await req.json();
         const { email, first_name, last_name, password } = userSchema.parse(body);
-
+        
         const existingUserByEmail = await db.user.findUnique({
             where: { email }
         });
-
+        
         if (existingUserByEmail) {
             return NextResponse.json({ 
                 success: false,
@@ -35,21 +36,44 @@ export async function POST(req: Request) {
                 status: 409 
             });
         }
-
+        
         const hashedPassword = await hash(password, 12);
-
+        
+        // Create the user with onboarding and subscription records
         const newUser = await db.user.create({
             data: {
                 first_name,
                 last_name,
                 email,
                 password: hashedPassword,
-                verified: false
+                verified: false,
+                role: "MEMBER",
+                // Create onboarding record
+                onboarding: {
+                    create: {
+                        completed: false
+                        // No need to specify other fields as they're optional
+                    }
+                },
+                // Create subscription record
+                subscription: {
+                    create: {
+                        plan_type: "FREE",
+                        status: "ACTIVE",
+                        cancel_at_period_end: false
+                    }
+                }
+            },
+            // Include the created relations in the response
+            include: {
+                onboarding: true,
+                subscription: true
             }
         });
-
+        
+        // Remove sensitive data from the response
         const { password: _, ...userWithoutPassword } = newUser;
-
+        
         return NextResponse.json({
             success: true,
             message: "Account created successfully",
@@ -57,12 +81,18 @@ export async function POST(req: Request) {
                 first_name: userWithoutPassword.first_name,
                 last_name: userWithoutPassword.last_name,
                 email: userWithoutPassword.email,
-                createdAt: userWithoutPassword.createdAt
+                createdAt: userWithoutPassword.createdAt,
+                hasCompletedOnboarding: userWithoutPassword.onboarding?.completed || false,
+                // Include basic subscription info if needed
+                subscription: {
+                    planType: userWithoutPassword.subscription?.plan_type || "FREE",
+                    status: userWithoutPassword.subscription?.status || "ACTIVE"
+                }
             }
         }, { 
             status: 201 
         });
-
+        
     } catch (error) {
         if (error instanceof z.ZodError) {
             return NextResponse.json({
@@ -73,18 +103,20 @@ export async function POST(req: Request) {
                 status: 400 
             });
         }
-
+        
         if (error instanceof Error) {
+            console.log("Error: ", error.stack);
+            
             return NextResponse.json({
                 success: false,
                 error: "Failed to create account",
-                code: "DATABASE_ERROR"
+                code: "DATABASE_ERROR",
+                details: error.message
             }, { 
                 status: 500 
             });
         }
-
-        console.error("Registration error:", error);
+        
         return NextResponse.json({
             success: false,
             error: "An unexpected error occurred",
