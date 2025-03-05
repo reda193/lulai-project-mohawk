@@ -28,6 +28,68 @@ const updateBotSchema = z.object({
 
 
 
+// GET request handler to fetch a specific bot
+export async function GET(
+    req: Request,
+    context: { params: Promise<{ botId: string }> }
+) {
+    try {
+        const session = await getServerSession(authOptions);
+        
+        if (!session || !session.user.email) {
+            return NextResponse.json(
+                { error: "Unauthorized" },
+                { status: 401 }
+            );
+        }
+        
+        const param = await context.params;
+        const botId = await param.botId;
+        
+        // Find the user
+        const user = await db.user.findUnique({
+            where: { email: session.user.email! }
+        });
+        
+        if (!user) {
+            return NextResponse.json(
+                { error: "User not found" },
+                { status: 404 }
+            );
+        }
+        
+        // Fetch the bot with related data
+        const bot = await db.bot.findFirst({
+            where: {
+                id: botId,
+                creator_id: user.userId
+            },
+            include: {
+                appearance: true,
+                bot_qa: true,
+                bot_training: true,
+                training_coverage: true
+            }
+        });
+        
+        if (!bot) {
+            return NextResponse.json(
+                { error: "Bot not found or unauthorized" },
+                { status: 404 }
+            );
+        }
+        
+        return NextResponse.json({ bot }, { status: 200 });
+        
+    } catch (error) {
+        console.error("Error fetching bot:", error);
+        return NextResponse.json(
+            { error: "Error fetching bot" },
+            { status: 500 }
+        );
+    }
+}
+
 export async function PATCH(
     req: Request,
     context: { params: Promise<{ botId: string }> }

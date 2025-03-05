@@ -52,7 +52,6 @@ export const authOptions: NextAuthOptions = {
                     if (!credentials?.email || !credentials?.password) {
                         throw new Error("Missing credentials");
                     }
-            
                     const existingUser = await db.user.findUnique({
                         where: { email: credentials.email },
                         include: {
@@ -78,7 +77,7 @@ export const authOptions: NextAuthOptions = {
                     if (!passwordMatch) {
                         throw new Error("Invalid password");
                     }
-            
+                    console.log(`User logged in: ${existingUser.email} (${existingUser.userId})`);
                     return {
                         id: existingUser.userId,
                         email: existingUser.email,

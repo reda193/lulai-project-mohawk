@@ -18,9 +18,13 @@ import SidebarItem from './SidebarItem';
 interface SidebarProps {
   isOpen: boolean;
   onToggle: () => void;
+  userName?: {
+    firstName?: string | null;
+    lastName?: string | null;
+  } | null;
 }
 
-const Sidebar: FC<SidebarProps> = ({ isOpen, onToggle }) => {
+const Sidebar: FC<SidebarProps> = ({ isOpen, onToggle, userName }) => {
   const navigationItems: SidebarItemType[] = [
     { icon: HomeIcon, label: 'Home', active: true, href: '/' },
     { icon: UsersIcon, label: 'Agents', active: false, href: '/agents' },
@@ -28,13 +32,18 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onToggle }) => {
     { icon: MessageSquareIcon, label: 'Conversations', active: false, href: '/conversations' },
     { icon: BrainIcon, label: 'Integrations', active: false, href: '/integrations' }
   ];
-
+  
   const personalItems: SidebarItemType[] = [
     { icon: UserIcon, label: 'Profile', active: false, href: '/profile' },
     { icon: MessageCircleIcon, label: 'Messages', active: false, href: '/messages' },
     { icon: SettingsIcon, label: 'Setting', active: false, href: '/settings' }
   ];
-
+  
+  // Generate display name safely, with fallback to "User"
+  const displayName = userName && (userName.firstName || userName.lastName) 
+    ? `${userName.firstName || ''} ${userName.lastName || ''}`.trim()
+    : "User";
+  
   return (
     <div className={`
       fixed top-0 left-0 h-full w-64 bg-white
@@ -43,7 +52,7 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onToggle }) => {
     `}>
       <div className="p-4 mb-10 border-b border-gray-100">
       </div>
-
+      
       <div className="flex-1 overflow-y-auto p-4">
         <div className="space-y-8">
           <nav>
@@ -51,7 +60,7 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onToggle }) => {
               <SidebarItem key={index} {...item} />
             ))}
           </nav>
-
+          
           <div>
             <div className="text-sm text-gray-500 mb-4">Personal</div>
             <nav>
@@ -62,12 +71,12 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onToggle }) => {
           </div>
         </div>
       </div>
-
+      
       <div className="border-t border-gray-100 p-4">
         <div className="flex items-center space-x-3">
           <div className="w-8 h-8 bg-gray-200 rounded-full" />
           <div>
-            <div className="text-sm font-medium">Amanda Goldberg</div>
+            <div className="text-sm font-medium">{displayName}</div>
             <div className="text-xs text-gray-500">View profile</div>
           </div>
           <button className="ml-auto">

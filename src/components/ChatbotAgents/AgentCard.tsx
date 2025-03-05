@@ -1,22 +1,41 @@
-import { FC } from 'react';
-import { MessageSquareIcon } from 'lucide-react';
-import { ChatbotAgent } from '@/types/dashboard';
+'use client';
 
-interface AgentCardProps extends ChatbotAgent {
+import { MessageSquare } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+
+interface AgentCardProps {
+  name: string;
+  status: string;
   onClick?: () => void;
 }
 
-const AgentCard: FC<AgentCardProps> = ({ name, status, onClick }) => {
+const AgentCard = ({ name, status, onClick }: AgentCardProps) => {
+  const router = useRouter();
+
+  const handleClick = () => {
+    if (onClick) {
+      onClick();
+    } else {
+      // Default behavior, e.g., navigate to agent details
+      console.log('Agent clicked:', name);
+      // router.push(`/agents/${name}`);
+    }
+  };
+
   return (
     <div 
-      onClick={onClick}
-      className="bg-white rounded-lg p-4 text-center cursor-pointer"
+      className="bg-white p-6 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+      onClick={handleClick}
     >
-      <div className="w-12 h-12 bg-black rounded-full mx-auto mb-3 flex items-center justify-center">
-        <MessageSquareIcon className="w-6 h-6 text-white" />
+      <div className="flex flex-col items-center">
+        <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-3">
+          <MessageSquare className="w-6 h-6 text-gray-700" />
+        </div>
+        <h3 className="text-md font-medium text-center">{name}</h3>
+        <span className={`text-xs mt-1 ${status === 'Active' ? 'text-green-500' : 'text-yellow-500'}`}>
+          {status}
+        </span>
       </div>
-      <p className="text-sm font-medium">{name}</p>
-      <p className="text-xs text-green-500 mt-1">{status}</p>
     </div>
   );
 };

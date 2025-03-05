@@ -11,6 +11,16 @@ const AppearanceSettings: FC<AppearanceSettingsProps> = ({ formData, onChange })
     onChange({ ...formData, [field]: value });
   };
 
+  const handleLogoUpload = () => {
+    // Trigger file upload for company logo
+    onChange({ company_logo_upload: true });
+  };
+
+  const handleAvatarUpload = () => {
+    // Trigger file upload for bot avatar
+    onChange({ bot_avatar_upload: true });
+  };
+
   const widgetPositions = [
     'bottom-right',
     'bottom-left',
@@ -51,7 +61,7 @@ const AppearanceSettings: FC<AppearanceSettingsProps> = ({ formData, onChange })
             <button
               type="button"
               className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
-              onClick={() => {/* Handle logo upload */}}
+              onClick={handleLogoUpload}
             >
               Upload Logo
             </button>
@@ -73,7 +83,7 @@ const AppearanceSettings: FC<AppearanceSettingsProps> = ({ formData, onChange })
             <button
               type="button"
               className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
-              onClick={() => {/* Handle avatar upload */}}
+              onClick={handleAvatarUpload}
             >
               Upload Avatar
             </button>
