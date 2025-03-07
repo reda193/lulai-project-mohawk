@@ -1,8 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faArrowLeft } from "@fortawesome/free-solid-svg-icons";
 import { EmailLoginFormProps } from './types';
 
 const EmailLoginForm: React.FC<EmailLoginFormProps> = ({ onSubmit, onBack }) => {
@@ -21,7 +19,8 @@ const EmailLoginForm: React.FC<EmailLoginFormProps> = ({ onSubmit, onBack }) => 
           onClick={onBack}
           className="absolute left-6 top-6 text-gray-600 hover:text-gray-900"
         >
-          <FontAwesomeIcon icon={faArrowLeft} className="w-5 h-5" />
+          {/* Replaced FontAwesomeIcon with simple text */}
+          &#8592; {/* Left Arrow Character */}
         </button>
         <h2 className="text-2xl font-semibold">Welcome back</h2>
         <p className="text-sm text-gray-500 mt-2">Log in with email</p>

@@ -1,13 +1,5 @@
 'use client';
 
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { 
-  faGoogle, 
-  faFacebook, 
-  faApple 
-} from "@fortawesome/free-brands-svg-icons";
-import { faEnvelope } from "@fortawesome/free-solid-svg-icons";
-
 interface LoginOptionsProps {
   onEmailClick: () => void;
   onSignUpClick: () => void;
@@ -31,7 +23,7 @@ const LoginOptions: React.FC<LoginOptionsProps> = ({
           onClick={onEmailClick}
           className="w-full flex items-center justify-center gap-2 px-6 py-2.5 bg-black text-white rounded-lg hover:bg-gray-900 transition-colors"
         >
-          <FontAwesomeIcon icon={faEnvelope} className="w-5 h-5" />
+          {/* Replaced FontAwesomeIcon with simple text */}
           Log in with Email
         </button>
         
@@ -39,7 +31,7 @@ const LoginOptions: React.FC<LoginOptionsProps> = ({
           onClick={() => onSocialLogin?.('google')}
           className="w-full flex items-center justify-center gap-2 px-6 py-2.5 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
         >
-          <FontAwesomeIcon icon={faGoogle} className="w-5 h-5" />
+          {/* Replaced FontAwesomeIcon with simple text */}
           Log in with Google
         </button>
                 
@@ -47,7 +39,7 @@ const LoginOptions: React.FC<LoginOptionsProps> = ({
           onClick={() => onSocialLogin?.('apple')}
           className="w-full flex items-center justify-center gap-2 px-6 py-2.5 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
         >
-          <FontAwesomeIcon icon={faApple} className="w-5 h-5" />
+          {/* Replaced FontAwesomeIcon with simple text */}
           Log in with Apple
         </button>
       </div>

@@ -26,7 +26,15 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onToggle }) => {
     { icon: UsersIcon, label: 'Agents', active: false, href: '/agents' },
     { icon: BarChartIcon, label: 'Analytics', active: false, href: '/analytics' },
     { icon: MessageSquareIcon, label: 'Conversations', active: false, href: '/conversations' },
-    { icon: BrainIcon, label: 'Integrations', active: false, href: '/integrations' }
+    { icon: BrainIcon, label: 'Integrations', active: false, href: '/integrations' },
+    { icon: BookmarkIcon, label: 'Client Management', active: false, href: '/client' },
+    { icon: BookmarkIcon, label: 'Subscription Management', active: false, href: '/subscription' },
+    { icon: BookmarkIcon, label: 'AI Management', active: false, href: '/ai' },
+    { icon: BookmarkIcon, label: 'Support', active: false, href: '/support' },
+    { icon: BookmarkIcon, label: 'Feature Management', active: false, href: '/feature' },
+    { icon: BookmarkIcon, label: 'Api Management', active: false, href: '/apim' },
+    { icon: BookmarkIcon, label: 'Security Management', active: false, href: '/security' },
+    { icon: BookmarkIcon, label: 'System Management', active: false, href: '/system' }
   ];
 
   const personalItems: SidebarItemType[] = [
