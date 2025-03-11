@@ -208,7 +208,54 @@ interface SystemManagementProps {
   };
 }
 
-const SystemManagement: FC<SystemManagementProps> = ({ initialData = { configs: [], overrides: [] } }) => {
+const SystemManagement: FC<SystemManagementProps> = ({ initialData = {
+  configs: [
+    {
+      id: '1',
+      clientName: 'Client A',
+      defaultBehavior: {
+        responseDelay: 2,
+        tone: 'friendly',
+        language: 'en',
+      },
+      branding: {
+        primaryColor: '#3b82f6',
+        secondaryColor: '#10b981',
+      },
+    },
+    {
+      id: '2',
+      clientName: 'Client B',
+      defaultBehavior: {
+        responseDelay: 5,
+        tone: 'formal',
+        language: 'es',
+      },
+      branding: {
+        primaryColor: '#ef4444',
+        secondaryColor: '#f59e0b',
+      },
+    },
+  ],
+  overrides: [
+    {
+      id: '1',
+      action: 'restart',
+      target: 'all',
+      status: 'completed',
+      initiatedAt: '2023-10-01T10:00:00Z',
+      completedAt: '2023-10-01T10:02:00Z',
+    },
+    {
+      id: '2',
+      action: 'disable',
+      target: 'specific',
+      clientIds: ['client1', 'client2'],
+      status: 'pending',
+      initiatedAt: '2023-10-02T12:00:00Z',
+    },
+  ],
+} }) => {
   const [configs, setConfigs] = useState<ChatbotConfig[]>(initialData.configs);
   const [overrides, setOverrides] = useState<EmergencyOverride[]>(initialData.overrides);
 

@@ -557,7 +557,126 @@ interface AIManagementProps {
 }
 
 const AIManagement: FC<AIManagementProps> = ({ initialData = { 
-  models: [], clients: [], datasets: [], statistics: [], errors: [] 
+  models: [
+    {
+      id: '1',
+      name: 'GPT-4',
+      provider: 'OpenAI',
+      version: '4.0',
+      type: 'Text Generation',
+      status: 'active',
+      lastUpdated: '2023-10-01',
+    },
+    {
+      id: '2',
+      name: 'BERT',
+      provider: 'Google',
+      version: '1.0',
+      type: 'Text Classification',
+      status: 'inactive',
+      lastUpdated: '2023-09-15',
+    },
+    {
+      id: '3',
+      name: 'DALL-E',
+      provider: 'OpenAI',
+      version: '2.0',
+      type: 'Image Generation',
+      status: 'deprecated',
+      lastUpdated: '2023-08-01',
+    },
+  ],
+  clients: [
+    {
+      clientId: '1',
+      clientName: 'Client A',
+      defaultModel: '1',
+      enabledModels: ['1', '2'],
+      usageThisMonth: 1200,
+      lastInteraction: '2023-10-05T14:30:00Z',
+    },
+    {
+      clientId: '2',
+      clientName: 'Client B',
+      defaultModel: '2',
+      enabledModels: ['2'],
+      usageThisMonth: 800,
+      lastInteraction: '2023-10-04T10:15:00Z',
+    },
+  ],
+  datasets: [
+    {
+      id: '1',
+      clientId: '1',
+      clientName: 'Client A',
+      name: 'Customer Support Dataset',
+      status: 'pending_review',
+      fileCount: 10,
+      totalSize: '1.2 GB',
+      submittedAt: '2023-10-01T09:00:00Z',
+      description: 'Dataset containing customer support interactions for training.',
+    },
+    {
+      id: '2',
+      clientId: '2',
+      clientName: 'Client B',
+      name: 'Product Reviews Dataset',
+      status: 'approved',
+      fileCount: 5,
+      totalSize: '500 MB',
+      submittedAt: '2023-09-28T11:00:00Z',
+      description: 'Dataset containing product reviews for sentiment analysis.',
+    },
+  ],
+  statistics: [
+    {
+      date: '2023-10-01',
+      totalInteractions: 1200,
+      uniqueUsers: 300,
+      avgResponseTime: 1.2,
+      errorRate: 0.5,
+    },
+    {
+      date: '2023-10-02',
+      totalInteractions: 1500,
+      uniqueUsers: 400,
+      avgResponseTime: 1.1,
+      errorRate: 0.4,
+    },
+    {
+      date: '2023-10-03',
+      totalInteractions: 1800,
+      uniqueUsers: 500,
+      avgResponseTime: 1.3,
+      errorRate: 0.6,
+    },
+  ],
+  errors: [
+    {
+      id: '1',
+      clientId: '1',
+      clientName: 'Client A',
+      timestamp: '2023-10-01T12:00:00Z',
+      errorType: 'Timeout',
+      errorMessage: 'Request timed out after 10 seconds.',
+      modelId: '1',
+      modelName: 'GPT-4',
+      severity: 'high',
+      status: 'new',
+    },
+    {
+      id: '2',
+      clientId: '2',
+      clientName: 'Client B',
+      timestamp: '2023-10-02T14:00:00Z',
+      errorType: 'Authentication Failure',
+      errorMessage: 'Invalid API key provided.',
+      modelId: '2',
+      modelName: 'BERT',
+      severity: 'critical',
+      status: 'investigating',
+    },
+  ],
 } }) => {
   const [models, setModels] = useState<AIModel[]>(initialData.models);
   const [clients, setClients] = useState<ClientModel[]>(initialData.clients);

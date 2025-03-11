@@ -167,7 +167,24 @@ interface FeatureManagementProps {
   };
 }
 
-const FeatureManagement: FC<FeatureManagementProps> = ({ initialData = { flags: [], features: [] } }) => {
+const FeatureManagement: FC<FeatureManagementProps> = ({ initialData = { flags: [
+  {
+    id: '1',
+    featureName: 'Sample Feature Flag',
+    description: 'This is a sample feature flag.',
+    enabledFor: ['all'],
+    isActive: true,
+  },
+],
+features: [
+  {
+    id: '1',
+    clientId: 'client1',
+    featureName: 'Sample Custom Feature',
+    description: 'This is a sample custom feature.',
+    status: 'draft',
+  },
+] } }) => {
   const [flags, setFlags] = useState<FeatureFlag[]>(initialData.flags);
   const [features, setFeatures] = useState<CustomFeature[]>(initialData.features);
 
@@ -182,8 +199,9 @@ const FeatureManagement: FC<FeatureManagementProps> = ({ initialData = { flags: 
     if (flag) {
       const newEnabledFor = prompt('Update enabled clients (comma-separated IDs or "all"):', flag.enabledFor.join(','));
       if (newEnabledFor !== null) {
+        const updatedEnabledFor = newEnabledFor.trim() === 'all' ? ['all'] : newEnabledFor.split(',').map(s => s.trim());
         setFlags(flags.map(flag =>
-          flag.id === flagId ? { ...flag, enabledFor: newEnabledFor.split(',').map(s => s.trim()) } : flag
+          flag.id === flagId ? { ...flag, enabledFor: updatedEnabledFor } : flag
         ));
       }
     }
