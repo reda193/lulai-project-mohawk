@@ -104,7 +104,7 @@ const ClientLanding = () => {
   };
 
   const handleOnboardingComplete = () => {
-    router.push('/home');
+    router.push('/dashboard');
   };
 
   // If session is loading, show nothing or a loading state
