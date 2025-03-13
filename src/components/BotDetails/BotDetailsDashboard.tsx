@@ -13,6 +13,7 @@ import SessionVolumeChart from './Charts/SessionVolumeChart';
 import SentimentTrendsChart from './Charts/SentimentTrendsChart';
 import TrainingCoverageChart from './Charts/TrainingCoverageChart';
 import UnrecognizedQueriesChart from './Charts/UnrecognizedQueriesChart';
+import LeadGenerationChart from './Charts/LeadGenerationChart';
 
 // Explicitly define the interface
 export interface BotDetailsProps {
@@ -118,8 +119,8 @@ export function BotDetailsDashboard({ bot }: BotDetailsProps) {
             <Users className="w-5 h-5 mr-2 text-green-500" />
             CSAT (Admin)
           </h2>
-          <CSATChart timeRange={timeRange} />
-        </div>
+          <CSATChart timeRange={timeRange} botId={bot.id} />
+          </div>
       </div>
       
       {/* Second row of visualizations */}
@@ -188,8 +189,21 @@ export function BotDetailsDashboard({ bot }: BotDetailsProps) {
           </h2>
           <UnrecognizedQueriesChart timeRange={timeRange} />
         </div>
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-lg font-medium mb-4 flex items-center">
+            <AlertCircle className="w-5 h-5 mr-2 text-pink-500" />
+            Lead Generation
+          </h2>
+          <LeadGenerationChart timeRange={timeRange} />
+        </div>
       </div>
+
+          
+      
     </div>
+
+    
   );
 }
 

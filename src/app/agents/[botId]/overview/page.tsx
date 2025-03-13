@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { MenuIcon, Users, MessageSquare, Calendar, Zap, Clock, Code } from 'lucide-react';
 import Sidebar from '@/components/Sidebar/Sidebar';
 import AgentNavigation from '@/components/Navigation/AgentNavigation';
-import { useParams } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import Image from 'next/image';
 
 interface BotAppearance {
@@ -23,40 +23,77 @@ interface Agent {
   appearance?: BotAppearance | null;
 }
 
-const AgentDetailsPage = () => {
+const AgentOverviewPage = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
   const [agent, setAgent] = useState<Agent | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const params = useParams();
-  const agentId = params?.id as string;
+  
+  // Get agent ID from path
+  const pathname = usePathname();
+  const pathSegments = pathname?.split('/') || [];
+  const agentId = pathSegments.length > 2 ? pathSegments[2] : null;
 
   useEffect(() => {
     const fetchAgentDetails = async () => {
-      try {
-        setIsLoading(true);
-        const response = await fetch(`/api/bot/${agentId}`);
-        
-        if (!response.ok) {
-          throw new Error('Failed to fetch agent details');
-        }
-        
-        const data = await response.json();
-        setAgent({
-          id: data.id,
-          name: data.bot_name || 'Unnamed Agent',
-          description: data.description,
-          model_type: data.model_type,
-          created_at: data.created_at,
-          status: 'Active',
-          appearance: data.appearance || null
-        });
-      } catch (err) {
-        console.error('Error fetching agent details:', err);
-        setError('Failed to load agent details. Please try again later.');
-      } finally {
+      if (!agentId) {
+        setError('No agent ID found in URL');
         setIsLoading(false);
+        return;
       }
+      
+      // Replace your current catch block with this more robust error handling
+try {
+  setIsLoading(true);
+  console.log('Fetching agent details for ID:', agentId);
+  
+  const response = await fetch(`/api/bot/${agentId}`);
+  
+  if (!response.ok) {
+    throw new Error(`Failed to fetch agent details. Status: ${response.status}`);
+  }
+  
+  const data = await response.json();
+  console.log('API Response data:', data);
+  
+  // IMPORTANT: Extract bot data from the response
+  // The API returns { bot: {...} } not just the bot object
+  const botData = data.bot;
+  
+  if (!botData) {
+    throw new Error('Bot data not found in response');
+  }
+  
+  setAgent({
+    id: botData.id,
+    name: botData.bot_name || 'Unnamed Agent',
+    description: botData.description,
+    model_type: botData.model_type,
+    created_at: botData.created_at,
+    status: 'Active',
+    // Check if appearance is an array and get the first item
+    appearance: Array.isArray(botData.appearance) && botData.appearance.length > 0
+      ? botData.appearance[0]
+      : botData.appearance || null
+  });
+} catch (error: unknown) {
+  console.error('Error fetching agent details:', error);
+  
+  // Properly handle different error types
+  let errorMessage = 'Failed to load agent details';
+  
+  if (error instanceof Error) {
+    errorMessage += `: ${error.message}`;
+  } else if (typeof error === 'string') {
+    errorMessage += `: ${error}`;
+  } else if (error && typeof error === 'object' && 'message' in error) {
+    errorMessage += `: ${error.message}`;
+  }
+  
+  setError(errorMessage);
+} finally {
+  setIsLoading(false);
+}
     };
 
     if (agentId) {
@@ -84,10 +121,10 @@ const AgentDetailsPage = () => {
       <div className={`
         flex-1 transition-all duration-300
         ${isSidebarOpen ? 'ml-64' : 'ml-0'}
-        p-8
+      
       `}>
-        {/* Navigation shows only on agent detail pages */}
-        <AgentNavigation agentId={agentId} />
+        {/* Navigation shows only on agent detail pages - pass the ID from path */}
+        <AgentNavigation agentId={agentId || ''} />
 
         <div className="max-w-7xl mx-auto">
           {/* Loading State */}
@@ -242,7 +279,7 @@ const AgentDetailsPage = () => {
                       <p className="text-gray-700 font-medium mb-2">API Endpoint</p>
                       <div className="flex items-center">
                         <code className="bg-gray-100 p-2 rounded text-sm text-gray-800 flex-1 overflow-x-auto">
-                          /api/agents/{agent.id}
+                          /api/bot/{agent.id}
                         </code>
                         <button className="ml-2 text-blue-600 hover:text-blue-800 text-sm">
                           Copy
@@ -275,4 +312,4 @@ const AgentDetailsPage = () => {
   );
 };
 
-export default AgentDetailsPage;
+export default AgentOverviewPage;

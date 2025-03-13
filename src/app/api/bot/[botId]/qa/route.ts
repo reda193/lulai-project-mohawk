@@ -18,7 +18,7 @@ const batchQASchema = z.array(qaItemSchema);
 
 export async function POST(
   req: NextRequest,
-  context: { params: { botId: string } }
+  context: any,
 ) {
   console.log("POST request received for bot QA creation");
 
@@ -185,7 +185,7 @@ export async function POST(
 // GET endpoint to retrieve QA data
 export async function GET(
   req: NextRequest,
-  context: { params: { botId: string } }
+  context: any,
 ) {
   console.log("GET request received for bot QA");
 
@@ -276,7 +276,7 @@ export async function GET(
 // PATCH endpoint to update a QA item
 export async function PATCH(
   req: NextRequest,
-  context: { params: { botId: string } }
+  context: any,
 ) {
   console.log("PATCH request received for bot QA update");
 
@@ -373,7 +373,7 @@ export async function PATCH(
 // DELETE endpoint to remove a QA item
 export async function DELETE(
   req: NextRequest,
-  context: { params: { botId: string } }
+  context: any,
 ) {
   console.log("DELETE request received for bot QA");
 

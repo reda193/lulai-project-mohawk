@@ -15,7 +15,7 @@ const createTrainingSchema = z.object({
 
 export async function POST(
   req: NextRequest,
-  context: { params: { botId: string } }
+  context: any
 ) {
   console.log("POST request received for bot training creation");
 
@@ -126,7 +126,7 @@ export async function POST(
 // GET endpoint to retrieve training data
 export async function GET(
   req: NextRequest,
-  context: { params: { botId: string } }
+  context: any
 ) {
   console.log("GET request received for bot training");
 
@@ -202,7 +202,7 @@ export async function GET(
 // DELETE endpoint to remove a training item
 export async function DELETE(
   req: NextRequest,
-  context: { params: { botId: string } }
+  context: any
 ) {
   console.log("DELETE request received for bot training");
 
@@ -282,7 +282,7 @@ export async function DELETE(
 // PATCH endpoint to update a training item
 export async function PATCH(
   req: NextRequest,
-  context: { params: { botId: string } }
+  context: any
 ) {
   console.log("PATCH request received for bot training update");
 

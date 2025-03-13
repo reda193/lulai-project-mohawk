@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react';
 import { ChevronLeft, ChevronRight, MessageSquare } from 'lucide-react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 
 // Updated interface to include avatar information
@@ -27,6 +27,7 @@ interface ChatbotAgentSliderProps {
 const ChatbotAgentSlider = ({ agents, className = '' }: ChatbotAgentSliderProps) => {
   const [scrollPosition, setScrollPosition] = useState(0);
   const sliderRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
 
   // Handle slider navigation
   const scroll = (direction: 'left' | 'right') => {
@@ -63,6 +64,12 @@ const ChatbotAgentSlider = ({ agents, className = '' }: ChatbotAgentSliderProps)
     if (element) {
       element.addEventListener('scroll', handleScroll);
     }
+  };
+
+  // Navigate to agent overview page
+  const handleAgentClick = (agentId: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    router.push(`/agents/${agentId}/overview`);
   };
 
   if (agents.length === 0) {
@@ -112,7 +119,7 @@ const ChatbotAgentSlider = ({ agents, className = '' }: ChatbotAgentSliderProps)
             <div 
               key={agent.id || agent.name}
               className="min-w-[220px] bg-white p-6 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer flex-shrink-0"
-              onClick={() => window.location.href = `/agents/${agent.id}`}
+              onClick={(e) => handleAgentClick(agent.id, e)}
             >
               <div className="flex flex-col items-center">
                 {/* Avatar display logic */}

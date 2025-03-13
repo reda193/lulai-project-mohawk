@@ -35,11 +35,23 @@ const ClientLanding = () => {
         email: credentials.email,
         password: credentials.password,
       });
-
+  
       if (result?.error) {
         console.error('Login failed:', result.error);
         throw new Error(result.error);
       }
+      
+      // After successful login, we need to fetch the latest session
+      // to check if onboarding is needed
+      const session = await fetch('/api/auth/session');
+      const sessionData = await session.json();
+      
+      if (sessionData?.user?.hasCompletedOnboarding) {
+        // User has completed onboarding, redirect to dashboard
+          window.location.href = '/dashboard';
+      }
+      // Otherwise, the component will re-render with authenticated state
+      // and show the onboarding flow
     } catch (error) {
       console.error('Login error:', error);
       throw error;

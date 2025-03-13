@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 
 export async function GET(
   req: Request,
-  context: { params: { botId: string } }
+  context: any
 ) {
   try {
     const session = await getServerSession(authOptions);

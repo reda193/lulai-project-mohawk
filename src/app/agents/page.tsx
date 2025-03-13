@@ -5,7 +5,8 @@ import { MenuIcon, PlusCircle } from 'lucide-react';
 import Sidebar from '@/components/Sidebar/Sidebar';
 import { useRouter } from 'next/navigation';
 import ChatbotAgentSlider from '@/components/ChatbotAgents/ChatbotAgentSlider';
-import AgentNavigation from '@/components/Navigation/AgentNavigation';
+import AgentCard from '@/components/ChatbotAgents/AgentCard';
+
 interface BotAppearance {
   bot_avatar?: string | null;
   company_logo?: string | null;
@@ -39,9 +40,13 @@ const AgentsPage = () => {
         const data = await response.json();
         setAgents(data.bots.map((bot: any) => ({
           id: bot.id,
-          name: bot.bot_name || (bot.appearance?.name || 'Unnamed Agent'),
-          status: 'Active', // Always set to Active for now as requested
-          appearance: bot.appearance || null
+          name: bot.bot_name || 'Unnamed Agent',
+          status: 'Active', // Always set to Active for now
+          appearance: bot.appearance?.[0] ? {
+            bot_avatar: bot.appearance[0].bot_avatar,
+            company_logo: bot.appearance[0].company_logo,
+            accent_color: bot.appearance[0].accent_color
+          } : null
         })));
       } catch (err) {
         console.error('Error fetching agents:', err);
@@ -50,9 +55,8 @@ const AgentsPage = () => {
         setIsLoading(false);
       }
     };
-
+  
     fetchUserAgents();
-    
   }, []);
 
   return (
@@ -78,7 +82,6 @@ const AgentsPage = () => {
         ${isSidebarOpen ? 'ml-64' : 'ml-0'}
         p-8
       `}>
-        <AgentNavigation agentId='5' />
         <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className="flex justify-between items-center mb-8">
@@ -132,26 +135,15 @@ const AgentsPage = () => {
               </div>
             </div>
           )}
-          {/* Agents Grid */}
+
+          {/* Chatbot Agents Slider - Similar to dashboard */}
           {!isLoading && !error && agents.length > 0 && (
-            <div>
-              <h2 className="text-xl font-semibold mb-4">All Agents</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {agents.map((agent) => (
-                  <div
-                    key={agent.id}
-                    className="bg-white p-6 rounded-lg shadow hover:shadow-md transition-shadow cursor-pointer"
-                    onClick={() => router.push(`/agents/${agent.id}`)}
-                  >
-                    <h3 className="font-semibold text-lg">{agent.name}</h3>
-                    <span className="inline-block px-2 py-1 rounded-full text-sm mt-2 bg-green-100 text-green-800">
-                      {agent.status}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <section className="mb-8">
+              <ChatbotAgentSlider agents={agents} />
+            </section>
           )}
+          
+
         </div>
       </div>
     </div>
