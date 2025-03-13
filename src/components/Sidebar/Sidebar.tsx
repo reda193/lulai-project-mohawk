@@ -1,48 +1,55 @@
-// components/Sidebar/Sidebar.tsx
-import { FC } from 'react';
+'use client';
+
+import { FC, useState, useEffect } from 'react';
+import { useRouter } from 'next/router';
 import {
   HomeIcon,
   UsersIcon,
-  BarChartIcon,
-  MessageSquareIcon,
-  BrainIcon,
   UserIcon,
   MessageCircleIcon,
-  BookmarkIcon,
   SettingsIcon,
   MoreVerticalIcon
 } from 'lucide-react';
-import { SidebarItem as SidebarItemType } from '@/types/dashboard';
 import SidebarItem from './SidebarItem';
 
 interface SidebarProps {
   isOpen: boolean;
   onToggle: () => void;
+  userName?: {
+    firstName?: string | null;
+    lastName?: string | null;
+  } | null;
 }
 
-const Sidebar: FC<SidebarProps> = ({ isOpen, onToggle }) => {
-  const navigationItems: SidebarItemType[] = [
-    { icon: HomeIcon, label: 'Home', active: true, href: '/' },
-    { icon: UsersIcon, label: 'Agents', active: false, href: '/agents' },
-    { icon: BarChartIcon, label: 'Analytics', active: false, href: '/analytics' },
-    { icon: MessageSquareIcon, label: 'Conversations', active: false, href: '/conversations' },
-    { icon: BrainIcon, label: 'Integrations', active: false, href: '/integrations' },
-    { icon: BookmarkIcon, label: 'Client Management', active: false, href: '/client' },
-    { icon: BookmarkIcon, label: 'Subscription Management', active: false, href: '/subscription' },
-    { icon: BookmarkIcon, label: 'AI Management', active: false, href: '/ai' },
-    { icon: BookmarkIcon, label: 'Support', active: false, href: '/support' },
-    { icon: BookmarkIcon, label: 'Feature Management', active: false, href: '/feature' },
-    { icon: BookmarkIcon, label: 'Api Management', active: false, href: '/apim' },
-    { icon: BookmarkIcon, label: 'Security Management', active: false, href: '/security' },
-    { icon: BookmarkIcon, label: 'System Management', active: false, href: '/system' }
+const Sidebar: FC<SidebarProps> = ({ isOpen, onToggle, userName }) => {
+  // Use a safe default path for initial render
+  const [currentPath, setCurrentPath] = useState('/');
+  const [isMounted, setIsMounted] = useState(false);
+  
+  // Only use router after component has mounted
+  useEffect(() => {
+    setIsMounted(true);
+    const path = window.location.pathname;
+    setCurrentPath(path);
+  }, []);
+  
+  // Define navigation items without 'active' property
+  const navigationItems = [
+    { icon: HomeIcon, label: 'Home', href: '/dashboard' },
+    { icon: UsersIcon, label: 'Agents', href: '/agents' }
   ];
-
-  const personalItems: SidebarItemType[] = [
-    { icon: UserIcon, label: 'Profile', active: false, href: '/profile' },
-    { icon: MessageCircleIcon, label: 'Messages', active: false, href: '/messages' },
-    { icon: SettingsIcon, label: 'Setting', active: false, href: '/settings' }
+  
+  const personalItems = [
+    { icon: UserIcon, label: 'Profile', href: '/profile' },
+    { icon: MessageCircleIcon, label: 'Messages', href: '/messages' },
+    { icon: SettingsIcon, label: 'Setting', href: '/settings' }
   ];
-
+  
+  // Generate display name safely, with fallback to "User"
+  const displayName = userName && (userName.firstName || userName.lastName)
+    ? `${userName.firstName || ''} ${userName.lastName || ''}`.trim()
+    : "User";
+  
   return (
     <div className={`
       fixed top-0 left-0 h-full w-64 bg-white
@@ -51,31 +58,55 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onToggle }) => {
     `}>
       <div className="p-4 mb-10 border-b border-gray-100">
       </div>
-
+      
       <div className="flex-1 overflow-y-auto p-4">
         <div className="space-y-8">
           <nav>
-            {navigationItems.map((item, index) => (
-              <SidebarItem key={index} {...item} />
-            ))}
+            {navigationItems.map((item, index) => {
+              // Check if the current path exactly matches the item's href
+              // For root path ("/"), ensure it's an exact match
+              const isActive = item.href === "/"
+                ? currentPath === "/"
+                : currentPath.startsWith(item.href);
+                
+              return (
+                <SidebarItem
+                  key={index}
+                  icon={item.icon}
+                  label={item.label}
+                  href={item.href}
+                  active={isActive}
+                />
+              );
+            })}
           </nav>
-
+          
           <div>
             <div className="text-sm text-gray-500 mb-4">Personal</div>
             <nav>
-              {personalItems.map((item, index) => (
-                <SidebarItem key={index} {...item} />
-              ))}
+              {personalItems.map((item, index) => {
+                const isActive = currentPath.startsWith(item.href);
+                
+                return (
+                  <SidebarItem
+                    key={index}
+                    icon={item.icon}
+                    label={item.label}
+                    href={item.href}
+                    active={isActive}
+                  />
+                );
+              })}
             </nav>
           </div>
         </div>
       </div>
-
+      
       <div className="border-t border-gray-100 p-4">
         <div className="flex items-center space-x-3">
           <div className="w-8 h-8 bg-gray-200 rounded-full" />
           <div>
-            <div className="text-sm font-medium">Amanda Goldberg</div>
+            <div className="text-sm font-medium">{displayName}</div>
             <div className="text-xs text-gray-500">View profile</div>
           </div>
           <button className="ml-auto">

@@ -8,26 +8,50 @@ import { useRouter } from "next/navigation";
 import SubscriptionPicker from "@/components/Onboarding/SubscriptionPicker";
 import AboutYouForm from "@/components/Onboarding/AboutYouForm";
 import Image from "next/image";
-
+import { useEffect } from "react";
 const ClientLanding = () => {
   const router = useRouter();
   const { data: session, status } = useSession();
   const [mode, setMode] = useState<'LOGIN_OPTIONS' | 'EMAIL_LOGIN' | 'SIGNUP'>('LOGIN_OPTIONS');
   const [onboardingStep, setOnboardingStep] = useState<'about' | 'subscription'>('about');
 
+  useEffect(() => {
+    console.log("Session status:", status);
+    console.log("Session data:", session);
+    console.log("Has completed onboarding:", session?.user?.hasCompletedOnboarding);
+    
+    // Force render of onboarding if user is authenticated
+    if (status === 'authenticated') {
+      // Log all user properties to see what we have
+      console.log("All user properties:", Object.keys(session.user));
+      console.log("Session user object:", session.user);
+    }
+  }, [session, status]);
+
   const handleLogin = async (credentials: LoginCredentials) => {
     try {
       const result = await signIn('credentials', {
-        redirect: true,
+        redirect: false,
         email: credentials.email,
         password: credentials.password,
-        callbackUrl: '/dashboard'
       });
-
+  
       if (result?.error) {
         console.error('Login failed:', result.error);
         throw new Error(result.error);
       }
+      
+      // After successful login, we need to fetch the latest session
+      // to check if onboarding is needed
+      const session = await fetch('/api/auth/session');
+      const sessionData = await session.json();
+      
+      if (sessionData?.user?.hasCompletedOnboarding) {
+        // User has completed onboarding, redirect to dashboard
+          window.location.href = '/dashboard';
+      }
+      // Otherwise, the component will re-render with authenticated state
+      // and show the onboarding flow
     } catch (error) {
       console.error('Login error:', error);
       throw error;
@@ -80,7 +104,7 @@ const ClientLanding = () => {
   };
 
   const handleOnboardingComplete = () => {
-    router.push('/home');
+    router.push('/dashboard');
   };
 
   // If session is loading, show nothing or a loading state
