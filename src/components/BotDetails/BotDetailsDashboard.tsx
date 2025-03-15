@@ -111,7 +111,7 @@ export function BotDetailsDashboard({ bot }: BotDetailsProps) {
             <Zap className="w-5 h-5 mr-2 text-blue-500" />
             Resolution Rate
           </h2>
-          <ResolutionRateChart timeRange={timeRange} />
+          <ResolutionRateChart timeRange={timeRange}  botId={bot.id}/>
         </div>
         
         <div className="bg-white rounded-lg shadow p-6">
@@ -130,7 +130,7 @@ export function BotDetailsDashboard({ bot }: BotDetailsProps) {
             <AlertCircle className="w-5 h-5 mr-2 text-red-500" />
             Escalation Rate
           </h2>
-          <EscalationRateChart timeRange={timeRange} />
+          <EscalationRateChart timeRange={timeRange} botId={bot.id} />
         </div>
         
         <div className="bg-white rounded-lg shadow p-6">
@@ -138,7 +138,7 @@ export function BotDetailsDashboard({ bot }: BotDetailsProps) {
             <Database className="w-5 h-5 mr-2 text-blue-500" />
             Knowledge Base Utilization
           </h2>
-          <KnowledgeBaseChart timeRange={timeRange} />
+          <KnowledgeBaseChart timeRange={timeRange} botId={bot.id} />
         </div>
       </div>
 

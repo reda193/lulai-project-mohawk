@@ -1,22 +1,27 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { z } from "zod";
 
-const sentimentFilterSchema = z.object({
-  botId: z.string().optional(),
-  startDate: z.string().optional(),
-  endDate: z.string().optional(),
-  timeFrame: z.enum(['daily', 'weekly', 'monthly']).default('daily')
-});
-
-// GET: Get sentiment analysis for user's bots
-export async function GET(req: Request) {
+// GET: Get sentiment trends for a specific bot
+export async function GET(
+  req: NextRequest,
+  context: any
+) {
   try {
+    const params = await context.params;
+    const botId = params.botId
+    
+    if (!botId) {
+      return NextResponse.json(
+        { error: "Bot ID is required" },
+        { status: 400 }
+      );
+    }
+
     const session = await getServerSession(authOptions);
     
-    if (!session || !session.user.email) {
+    if (!session || !session.user?.email) {
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 }
@@ -33,59 +38,52 @@ export async function GET(req: Request) {
         { status: 404 }
       );
     }
-
-    // Parse and validate query parameters
-    const url = new URL(req.url);
-    const validated = sentimentFilterSchema.safeParse({
-      botId: url.searchParams.get('botId'),
-      startDate: url.searchParams.get('startDate'),
-      endDate: url.searchParams.get('endDate'),
-      timeFrame: url.searchParams.get('timeFrame') || 'daily'
-    });
-
-    if (!validated.success) {
-      return NextResponse.json(
-        { error: "Invalid query parameters", details: validated.error.format() },
-        { status: 400 }
-      );
+    
+    // Parse query parameters
+    const searchParams = req.nextUrl.searchParams;
+    const rawStartDate = searchParams.get('startDate');
+    const rawEndDate = searchParams.get('endDate');
+    
+    // Parse dates with fallbacks
+    let startDateTime, endDateTime;
+    
+    try {
+      startDateTime = rawStartDate ? new Date(rawStartDate) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      if (isNaN(startDateTime.getTime())) {
+        startDateTime = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      }
+    } catch (e) {
+      startDateTime = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    }
+    
+    try {
+      endDateTime = rawEndDate ? new Date(rawEndDate) : new Date();
+      if (isNaN(endDateTime.getTime())) {
+        endDateTime = new Date();
+      }
+    } catch (e) {
+      endDateTime = new Date();
     }
 
-    const { botId, startDate, endDate, timeFrame } = validated.data;
-
-    // Default to last 30 days if no dates provided
-    const defaultStartDate = new Date();
-    defaultStartDate.setDate(defaultStartDate.getDate() - 30);
-    
-    const startDateTime = startDate ? new Date(startDate) : defaultStartDate;
-    const endDateTime = endDate ? new Date(endDate) : new Date();
-
-    // Get user's bots or specific bot
-    const botsCondition = botId 
-      ? { id: botId, creator_id: user.userId }
-      : { creator_id: user.userId };
-
-    const bots = await db.bot.findMany({
-      where: botsCondition,
-      select: {
-        id: true,
-        bot_name: true
+    // Verify bot belongs to user
+    const bot = await db.bot.findFirst({
+      where: { 
+        id: botId,
+        creator_id: user.userId 
       }
     });
 
-    if (bots.length === 0) {
-      return NextResponse.json({
-        message: botId ? "Bot not found or unauthorized" : "No bots found for this user",
-        sentiment: []
-      }, { status: botId ? 404 : 200 });
+    if (!bot) {
+      return NextResponse.json(
+        { error: "Bot not found or unauthorized" },
+        { status: 404 }
+      );
     }
 
-    const botIds = bots.map(bot => bot.id);
-
-    // Get conversations with sentiment scores
+    // Get all conversations for this bot in the date range with sentiment scores
     const conversations = await db.conversation.findMany({
       where: {
-        bot_id: { in: botIds },
-        sentiment_score: { not: null },
+        bot_id: botId,
         start_time: {
           gte: startDateTime,
           lte: endDateTime
@@ -93,208 +91,198 @@ export async function GET(req: Request) {
       },
       select: {
         id: true,
-        bot_id: true,
         start_time: true,
-        sentiment_score: true,
-        escalated: true
+        sentiment_score: true
       }
     });
 
-    // Group by bot for overall stats
-    const botSentimentMap = botIds.reduce((map, id) => {
-      map[id] = {
-        botId: id,
-        botName: bots.find(b => b.id === id)?.bot_name || 'Unknown',
-        conversationsCount: 0,
-        averageSentiment: 0,
-        distribution: {
-          positive: 0,
-          neutral: 0,
-          negative: 0
-        },
-        escalationByDistribution: {
-          positive: { count: 0, total: 0 },
-          neutral: { count: 0, total: 0 },
-          negative: { count: 0, total: 0 }
-        }
-      };
-      return map;
-    }, {} as Record<string, any>);
-
-    // Define types for time series data
-    interface SentimentTimeEntry {
-      positive: number;
-      neutral: number;
-      negative: number;
-      averageScore: number;
-      totalCount: number;
-    }
+    // Calculate date range in days
+    const daysDiff = Math.ceil((endDateTime.getTime() - startDateTime.getTime()) / (1000 * 60 * 60 * 24));
     
-    // Time series data for plotting trends
-    const timeSeriesData: Record<string, Record<string, SentimentTimeEntry>> = {};
+    // Determine appropriate time interval based on date range
+    let interval = 'daily';
+    if (daysDiff > 60) {
+      interval = 'monthly';
+    } else if (daysDiff > 14) {
+      interval = 'weekly';
+    }
+
+    // Group conversations by time period
+    const timeGroups: Record<string, { 
+      positive: number, 
+      neutral: number, 
+      negative: number,
+      total: number
+    }> = {};
+    
+    // Initialize time periods
+    if (interval === 'daily') {
+      // Create entries for each day
+      const current = new Date(startDateTime);
+      while (current <= endDateTime) {
+        const dateKey = current.toISOString().split('T')[0];
+        timeGroups[dateKey] = { positive: 0, neutral: 0, negative: 0, total: 0 };
+        current.setDate(current.getDate() + 1);
+      }
+    } else if (interval === 'weekly') {
+      // Group by week
+      const weekCount = Math.ceil(daysDiff / 7);
+      for (let i = 0; i < weekCount; i++) {
+        timeGroups[`Week ${i + 1}`] = { positive: 0, neutral: 0, negative: 0, total: 0 };
+      }
+    } else {
+      // Group by month
+      const startMonth = new Date(startDateTime);
+      const endMonth = new Date(endDateTime);
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      
+      let current = new Date(startMonth);
+      current.setDate(1); // First day of month
+      
+      while (current <= endMonth) {
+        const monthKey = months[current.getMonth()];
+        timeGroups[monthKey] = { positive: 0, neutral: 0, negative: 0, total: 0 };
+        current.setMonth(current.getMonth() + 1);
+      }
+    }
 
     // Process each conversation
     conversations.forEach(conv => {
-      const botId = conv.bot_id;
-      const sentiment = conv.sentiment_score || 0;
+      let group;
       const date = new Date(conv.start_time);
       
-      // Update bot stats
-      botSentimentMap[botId].conversationsCount++;
-      
-      // Categorize sentiment
-      let category: 'positive' | 'neutral' | 'negative';
-      if (sentiment > 0.3) {
-        category = 'positive';
-      } else if (sentiment < -0.3) {
-        category = 'negative';
-      } else {
-        category = 'neutral';
-      }
-      
-      // Update distribution
-      botSentimentMap[botId].distribution[category]++;
-      
-      // Track escalations by sentiment category
-      botSentimentMap[botId].escalationByDistribution[category].total++;
-      if (conv.escalated) {
-        botSentimentMap[botId].escalationByDistribution[category].count++;
-      }
-      
-      // Generate time key based on timeFrame
-      let timeKey: string;
-      if (timeFrame === 'daily') {
-        timeKey = date.toISOString().split('T')[0]; // YYYY-MM-DD
-      } else if (timeFrame === 'weekly') {
-        // Get the week number
-        const startOfYear = new Date(date.getFullYear(), 0, 1);
-        const days = Math.floor((date.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000));
-        const weekNumber = Math.ceil((days + startOfYear.getDay() + 1) / 7);
-        timeKey = `${date.getFullYear()}-W${weekNumber}`;
+      if (interval === 'daily') {
+        const dateKey = date.toISOString().split('T')[0];
+        group = timeGroups[dateKey];
+      } else if (interval === 'weekly') {
+        // Calculate which week this falls into
+        const dayIndex = Math.floor((date.getTime() - startDateTime.getTime()) / (1000 * 60 * 60 * 24));
+        const weekIndex = Math.floor(dayIndex / 7);
+        group = timeGroups[`Week ${weekIndex + 1}`];
       } else {
         // Monthly
-        timeKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        const monthKey = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][date.getMonth()];
+        group = timeGroups[monthKey];
       }
       
-      // Initialize time series entry if needed
-      if (!timeSeriesData[timeKey]) {
-        timeSeriesData[timeKey] = {};
-      }
-      
-      if (!timeSeriesData[timeKey][botId]) {
-        timeSeriesData[timeKey][botId] = {
-          positive: 0,
-          neutral: 0,
-          negative: 0,
-          averageScore: 0,
-          totalCount: 0
-        };
-      }
-      
-      // Update time series data
-      timeSeriesData[timeKey][botId][category]++;
-      timeSeriesData[timeKey][botId].totalCount++;
-      timeSeriesData[timeKey][botId].averageScore = 
-        (timeSeriesData[timeKey][botId].averageScore * (timeSeriesData[timeKey][botId].totalCount - 1) + sentiment) / 
-        timeSeriesData[timeKey][botId].totalCount;
-    });
-
-    // Calculate final averages and percentages for each bot
-    Object.keys(botSentimentMap).forEach(botId => {
-      const bot = botSentimentMap[botId];
-      if (bot.conversationsCount > 0) {
-        // Calculate average sentiment from all conversations for this bot
-        const botConversations = conversations.filter(c => c.bot_id === botId);
-        const totalSentiment = botConversations.reduce((sum, conv) => sum + (conv.sentiment_score || 0), 0);
-        bot.averageSentiment = totalSentiment / botConversations.length;
+      if (group) {
+        group.total++;
         
-        // Convert counts to percentages
-        const totalDistribution = bot.distribution.positive + bot.distribution.neutral + bot.distribution.negative;
-        if (totalDistribution > 0) {
-          bot.distribution.positive = (bot.distribution.positive / totalDistribution) * 100;
-          bot.distribution.neutral = (bot.distribution.neutral / totalDistribution) * 100;
-          bot.distribution.negative = (bot.distribution.negative / totalDistribution) * 100;
-        }
+        // Classify sentiment based on score
+        // Scores typically range from -1 (negative) to 1 (positive)
+        const score = conv.sentiment_score || 0;
         
-        // Calculate escalation rates for each sentiment category
-        if (bot.escalationByDistribution.positive.total > 0) {
-          bot.escalationByDistribution.positive.rate = 
-            (bot.escalationByDistribution.positive.count / bot.escalationByDistribution.positive.total) * 100;
-        }
-        
-        if (bot.escalationByDistribution.neutral.total > 0) {
-          bot.escalationByDistribution.neutral.rate = 
-            (bot.escalationByDistribution.neutral.count / bot.escalationByDistribution.neutral.total) * 100;
-        }
-        
-        if (bot.escalationByDistribution.negative.total > 0) {
-          bot.escalationByDistribution.negative.rate = 
-            (bot.escalationByDistribution.negative.count / bot.escalationByDistribution.negative.total) * 100;
+        if (score > 0.2) {
+          group.positive++;
+        } else if (score < -0.2) {
+          group.negative++;
+        } else {
+          group.neutral++;
         }
       }
     });
 
-    // Convert time series data to sorted array
-    const trends = Object.entries(timeSeriesData)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([timeKey, botData]) => {
-        const botTrends = Object.entries(botData).map(([botId, data]) => {
-          const totalCount = data.positive + data.neutral + data.negative;
-          return {
-            botId,
-            botName: bots.find(b => b.id === botId)?.bot_name || 'Unknown',
-            distribution: {
-              positive: totalCount > 0 ? (data.positive / totalCount) * 100 : 0,
-              neutral: totalCount > 0 ? (data.neutral / totalCount) * 100 : 0,
-              negative: totalCount > 0 ? (data.negative / totalCount) * 100 : 0
-            },
-            averageScore: data.averageScore,
-            count: totalCount
-          };
-        });
-
-        return {
-          period: timeKey,
-          bots: botTrends
-        };
+    // Format data for the chart
+    const chartData = Object.entries(timeGroups).map(([name, data]) => {
+      // Convert counts to percentages
+      let positive = 0;
+      let neutral = 0;
+      let negative = 0;
+      
+      if (data.total > 0) {
+        positive = Math.round((data.positive / data.total) * 100);
+        neutral = Math.round((data.neutral / data.total) * 100);
+        negative = Math.round((data.negative / data.total) * 100);
+        
+        // Handle rounding errors to ensure total is 100%
+        const total = positive + neutral + negative;
+        if (total !== 100) {
+          const diff = 100 - total;
+          // Add the difference to the largest category
+          if (positive >= neutral && positive >= negative) {
+            positive += diff;
+          } else if (neutral >= positive && neutral >= negative) {
+            neutral += diff;
+          } else {
+            negative += diff;
+          }
+        }
+      }
+      
+      return {
+        name,
+        positive,
+        neutral,
+        negative
+      };
+    });
+    
+    // Sort by time period
+    if (interval === 'daily') {
+      // Sort by date
+      chartData.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (interval === 'weekly') {
+      // Sort by week number
+      chartData.sort((a, b) => {
+        const weekA = parseInt(a.name.split(' ')[1]);
+        const weekB = parseInt(b.name.split(' ')[1]);
+        return weekA - weekB;
       });
+    } 
+    // For monthly, we'll rely on the natural order from Object.entries
 
-    // Prepare overall stats
-    const overallSentiment = conversations.length > 0
-      ? conversations.reduce((sum, conv) => sum + (conv.sentiment_score || 0), 0) / conversations.length
-      : 0;
-
-    const sentimentDistribution = {
-      positive: conversations.filter(conv => (conv.sentiment_score || 0) > 0.3).length,
-      neutral: conversations.filter(conv => (conv.sentiment_score || 0) >= -0.3 && (conv.sentiment_score || 0) <= 0.3).length,
-      negative: conversations.filter(conv => (conv.sentiment_score || 0) < -0.3).length
+    // Calculate overall sentiment averages
+    let totalPositive = 0;
+    let totalNeutral = 0;
+    let totalNegative = 0;
+    let totalCount = 0;
+    
+    Object.values(timeGroups).forEach(group => {
+      totalPositive += group.positive;
+      totalNeutral += group.neutral;
+      totalNegative += group.negative;
+      totalCount += group.total;
+    });
+    
+    const averageSentiment = {
+      positive: totalCount > 0 ? Math.round((totalPositive / totalCount) * 100) : 0,
+      neutral: totalCount > 0 ? Math.round((totalNeutral / totalCount) * 100) : 0,
+      negative: totalCount > 0 ? Math.round((totalNegative / totalCount) * 100) : 0,
     };
-
-    const totalConversations = conversations.length;
-    const distributionPercentages = totalConversations > 0 ? {
-      positive: (sentimentDistribution.positive / totalConversations) * 100,
-      neutral: (sentimentDistribution.neutral / totalConversations) * 100,
-      negative: (sentimentDistribution.negative / totalConversations) * 100
-    } : { positive: 0, neutral: 0, negative: 0 };
+    
+    // Handle rounding errors for average
+    const totalAverage = averageSentiment.positive + averageSentiment.neutral + averageSentiment.negative;
+    if (totalAverage !== 100 && totalCount > 0) {
+      const diff = 100 - totalAverage;
+      if (averageSentiment.positive >= averageSentiment.neutral && averageSentiment.positive >= averageSentiment.negative) {
+        averageSentiment.positive += diff;
+      } else if (averageSentiment.neutral >= averageSentiment.positive && averageSentiment.neutral >= averageSentiment.negative) {
+        averageSentiment.neutral += diff;
+      } else {
+        averageSentiment.negative += diff;
+      }
+    }
 
     return NextResponse.json({
       timeframe: {
         start: startDateTime,
         end: endDateTime,
-        groupBy: timeFrame
+        interval
       },
       summary: {
-        totalConversationsWithSentiment: totalConversations,
-        overallSentiment: overallSentiment,
-        distribution: distributionPercentages
+        totalConversations: totalCount,
+        averageSentiment
       },
-      bots: Object.values(botSentimentMap),
-      trends
+      chartData,
+      bot: {
+        id: bot.id,
+        name: bot.bot_name
+      }
     }, { status: 200 });
   } catch (error) {
-    console.error("Error fetching sentiment analysis:", error);
+    console.error("Error fetching sentiment trends:", error);
     return NextResponse.json(
-      { error: "Error fetching sentiment analysis" },
+      { error: "Error fetching sentiment trends" },
       { status: 500 }
     );
   }

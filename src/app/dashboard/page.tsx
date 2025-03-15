@@ -39,6 +39,9 @@ export default async function DashboardPage() {
   // Explicitly type the chatbotAgents array
   let chatbotAgents: ChatbotAgent[] = [];
   
+  // Fetch user data including role
+  let userRole = 'MEMBER'; // Default role if not found
+  
   try {
     // Fetch bots directly from the database
     if (session.user?.email) {
@@ -47,6 +50,9 @@ export default async function DashboardPage() {
       });
       
       if (user) {
+        // Get the user's role
+        userRole = user.role;
+        
         const bots = await db.bot.findMany({
           where: {
             creator_id: user.userId
@@ -92,15 +98,16 @@ export default async function DashboardPage() {
     { name: 'David Wilson', total: '$3,000.00', country: 'Germany', date: '2023-10-15', status: 'Active' },
   ];
 
-  // User data for sidebar
+  // Enhanced user data for sidebar, now including role
   const userData = {
     firstName: session.user?.first_name || '',
-    lastName: session.user?.last_name || ''
+    lastName: session.user?.last_name || '',
+    role: userRole // Pass the user role to the sidebar
   };
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      {/* Sidebar Wrapper now contains the main content as children */}
+      {/* Sidebar Wrapper now contains the main content as children and receives user role */}
       <SidebarWrapper userData={userData}>
         {/* Main Content - No longer needs ml-64 as it's now dynamic in SidebarWrapper */}
         <div className="p-8">

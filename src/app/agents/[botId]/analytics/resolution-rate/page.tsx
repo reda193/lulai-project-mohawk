@@ -15,7 +15,8 @@ const ResolutionRatePage = () => {
   // Get agent ID from path
   const pathname = usePathname();
   const pathSegments = pathname?.split('/') || [];
-  const agentId = pathSegments.length > 2 ? pathSegments[2] : null;
+  // Convert null to undefined to match the expected prop type
+  const agentId = pathSegments.length > 2 ? pathSegments[2] : undefined;
 
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -82,7 +83,7 @@ const ResolutionRatePage = () => {
                 <Zap className="w-5 h-5 mr-2 text-blue-500" />
                 Resolution Rate
               </h2>
-              <ResolutionRateChart timeRange={timeRange} />
+              <ResolutionRateChart timeRange={timeRange} botId={agentId} />
             </div>
             
             {/* Resolution Rate Details */}

@@ -1,23 +1,65 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { z } from "zod";
 
+// Define clear interfaces for type safety
+interface BotTimeEntry {
+  botId: string;
+  botName: string;
+  totalConversations: number;
+  resolvedConversations: number;
+  resolutionRate: number;
+  statusCounts: Record<string, number>;
+}
+
+interface TimeEntry {
+  bots: Record<string, BotTimeEntry>;
+}
+
+interface BotResolutionEntry {
+  botId: string;
+  botName: string;
+  totalConversations: number;
+  resolvedConversations: number;
+  resolutionRate: number;
+  averageMessagesPerResolution: number;
+  statusBreakdown: Record<string, number>;
+  totalMessagesInResolved?: number;
+}
+
+interface TrendPeriod {
+  period: string;
+  bots: BotTimeEntry[];
+}
+
 const resolutionFilterSchema = z.object({
-  botId: z.string().optional(),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
   timeFrame: z.enum(['daily', 'weekly', 'monthly']).default('daily'),
   status: z.string().optional()
 });
 
-// GET: Get resolution rate metrics for chatbots
-export async function GET(req: Request) {
+// GET: Get resolution rate metrics for a specific bot
+export async function GET(
+  req: NextRequest,
+  context: any
+) {
   try {
+    const params = await context.params;
+    const botId = params.botId
+    
+    if (!botId) {
+      return NextResponse.json(
+        { error: "Bot ID is required" },
+        { status: 400 }
+      );
+    }
+
     const session = await getServerSession(authOptions);
     
-    if (!session || !session.user.email) {
+    if (!session || !session.user?.email) {
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 }
@@ -35,57 +77,72 @@ export async function GET(req: Request) {
       );
     }
 
-    // Parse and validate query parameters
-    const url = new URL(req.url);
-    const validated = resolutionFilterSchema.safeParse({
-      botId: url.searchParams.get('botId'),
-      startDate: url.searchParams.get('startDate'),
-      endDate: url.searchParams.get('endDate'),
-      timeFrame: url.searchParams.get('timeFrame') || 'daily',
-      status: url.searchParams.get('status')
-    });
-
-    if (!validated.success) {
-      return NextResponse.json(
-        { error: "Invalid query parameters", details: validated.error.format() },
-        { status: 400 }
-      );
-    }
-
-    const { botId, startDate, endDate, timeFrame, status } = validated.data;
-
-    // Default to last 30 days if no dates provided
-    const defaultStartDate = new Date();
-    defaultStartDate.setDate(defaultStartDate.getDate() - 30);
+    // Parse query parameters without validation for debugging
+    const searchParams = req.nextUrl.searchParams;
+    const rawStartDate = searchParams.get('startDate');
+    const rawEndDate = searchParams.get('endDate');
+    const rawTimeFrame = searchParams.get('timeFrame');
+    const rawStatus = searchParams.get('status');
     
-    const startDateTime = startDate ? new Date(startDate) : defaultStartDate;
-    const endDateTime = endDate ? new Date(endDate) : new Date();
+    console.log('Query params received:', {
+      startDate: rawStartDate,
+      endDate: rawEndDate,
+      timeFrame: rawTimeFrame,
+      status: rawStatus
+    });
+    
+    // More lenient validation
+    let startDateTime, endDateTime, timeFrame, status;
+    
+    // Parse dates with fallbacks
+    try {
+      startDateTime = rawStartDate ? new Date(rawStartDate) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      // Check if valid date
+      if (isNaN(startDateTime.getTime())) {
+        startDateTime = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      }
+    } catch (e) {
+      startDateTime = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    }
+    
+    try {
+      endDateTime = rawEndDate ? new Date(rawEndDate) : new Date();
+      // Check if valid date
+      if (isNaN(endDateTime.getTime())) {
+        endDateTime = new Date();
+      }
+    } catch (e) {
+      endDateTime = new Date();
+    }
+    
+    // Parse timeFrame with fallback
+    if (rawTimeFrame === 'daily' || rawTimeFrame === 'weekly' || rawTimeFrame === 'monthly') {
+      timeFrame = rawTimeFrame;
+    } else {
+      timeFrame = 'daily';
+    }
+    
+    // Pass through status as-is
+    status = rawStatus;
 
-    // Get user's bots or specific bot
-    const botsCondition = botId 
-      ? { id: botId, creator_id: user.userId }
-      : { creator_id: user.userId };
-
-    const bots = await db.bot.findMany({
-      where: botsCondition,
-      select: {
-        id: true,
-        bot_name: true
+    // Verify bot belongs to user
+    const bot = await db.bot.findFirst({
+      where: { 
+        id: botId,
+        creator_id: user.userId 
       }
     });
 
-    if (bots.length === 0) {
-      return NextResponse.json({
-        message: botId ? "Bot not found or unauthorized" : "No bots found for this user",
-        resolution: []
-      }, { status: botId ? 404 : 200 });
+    if (!bot) {
+      return NextResponse.json(
+        { error: "Bot not found or unauthorized" },
+        { status: 404 }
+      );
     }
-
-    const botIds = bots.map(bot => bot.id);
 
     // Build query conditions
     const whereCondition: any = {
-      bot_id: { in: botIds },
+      bot_id: botId,
       start_time: {
         gte: startDateTime,
         lte: endDateTime
@@ -113,60 +170,88 @@ export async function GET(req: Request) {
     // Define which statuses count as "resolved"
     const resolvedStatuses = ["RESOLVED", "COMPLETED", "CLOSED"];
 
-    // Group conversations by bot
-    const botResolutionMap = botIds.reduce((map, id) => {
-      map[id] = {
-        botId: id,
-        botName: bots.find(b => b.id === id)?.bot_name || 'Unknown',
-        totalConversations: 0,
-        resolvedConversations: 0,
-        resolutionRate: 0,
-        averageMessagesPerResolution: 0,
-        statusBreakdown: {} as Record<string, number>
-      };
-      return map;
-    }, {} as Record<string, any>);
+    // Create a bot entry for resolution metrics
+    const botResolution: BotResolutionEntry = {
+      botId: bot.id,
+      botName: bot.bot_name,
+      totalConversations: 0,
+      resolvedConversations: 0,
+      resolutionRate: 0,
+      averageMessagesPerResolution: 0,
+      statusBreakdown: {},
+      totalMessagesInResolved: 0
+    };
 
-    // Define types for time series data
-    interface TimeSeriesEntry {
-      botId: string;
-      botName: string;
-      totalConversations: number;
-      resolvedConversations: number;
-      resolutionRate: number;
-      statusCounts: Record<string, number>;
+    // Time series data - ensure we have entries for each day in the date range
+    const timeSeriesData: Record<string, TimeEntry> = {};
+    
+    // Create entries for each day in the date range
+    const currentDate = new Date(startDateTime);
+    while (currentDate <= endDateTime) {
+      let timeKey: string;
+      
+      if (timeFrame === 'daily') {
+        timeKey = currentDate.toISOString().split('T')[0]; // YYYY-MM-DD
+      } else if (timeFrame === 'weekly') {
+        // Get the week number
+        const startOfYear = new Date(currentDate.getFullYear(), 0, 1);
+        const days = Math.floor((currentDate.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000));
+        const weekNumber = Math.ceil((days + startOfYear.getDay() + 1) / 7);
+        timeKey = `${currentDate.getFullYear()}-W${weekNumber}`;
+      } else {
+        // Monthly
+        timeKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+      }
+      
+      if (!timeSeriesData[timeKey]) {
+        const botEntry: BotTimeEntry = {
+          botId: bot.id,
+          botName: bot.bot_name,
+          totalConversations: 0,
+          resolvedConversations: 0,
+          resolutionRate: 0,
+          statusCounts: {}
+        };
+        
+        timeSeriesData[timeKey] = {
+          bots: { [bot.id]: botEntry }
+        };
+      }
+      
+      // Move to next day/week/month
+      if (timeFrame === 'daily') {
+        currentDate.setDate(currentDate.getDate() + 1);
+      } else if (timeFrame === 'weekly') {
+        currentDate.setDate(currentDate.getDate() + 7);
+      } else {
+        currentDate.setMonth(currentDate.getMonth() + 1);
+      }
     }
-
-    // Time series data for plotting trends
-    const timeSeriesData: Record<string, Record<string, TimeSeriesEntry>> = {};
 
     // Process each conversation
     conversations.forEach(conv => {
-      const botId = conv.bot_id;
       const isResolved = resolvedStatuses.includes(conv.resolution_status || "");
       const messageCount = conv.messages.length;
-      const userMessageCount = conv.messages.filter(msg => msg.sender_type === "USER").length;
-      const botMessageCount = conv.messages.filter(msg => msg.sender_type === "BOT").length;
       const date = new Date(conv.start_time);
       
       // Update bot stats
-      botResolutionMap[botId].totalConversations++;
+      botResolution.totalConversations++;
       
       // Track resolution status
-      if (!botResolutionMap[botId].statusBreakdown[conv.resolution_status || "UNRESOLVED"]) {
-        botResolutionMap[botId].statusBreakdown[conv.resolution_status || "UNRESOLVED"] = 0;
+      const statusKey = conv.resolution_status || "UNRESOLVED";
+      if (!botResolution.statusBreakdown[statusKey]) {
+        botResolution.statusBreakdown[statusKey] = 0;
       }
-      botResolutionMap[botId].statusBreakdown[conv.resolution_status || "UNRESOLVED"]++;
+      botResolution.statusBreakdown[statusKey]++;
       
       // Track resolved conversations
       if (isResolved) {
-        botResolutionMap[botId].resolvedConversations++;
+        botResolution.resolvedConversations++;
         
         // Update message count for calculating average
-        if (!botResolutionMap[botId].totalMessagesInResolved) {
-          botResolutionMap[botId].totalMessagesInResolved = 0;
+        if (botResolution.totalMessagesInResolved !== undefined) {
+          botResolution.totalMessagesInResolved += messageCount;
         }
-        botResolutionMap[botId].totalMessagesInResolved += messageCount;
       }
       
       // Generate time key based on timeFrame
@@ -184,65 +269,48 @@ export async function GET(req: Request) {
         timeKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       }
       
-      // Initialize time series entry if needed
-      if (!timeSeriesData[timeKey]) {
-        timeSeriesData[timeKey] = {};
-      }
-      
-      if (!timeSeriesData[timeKey][botId]) {
-        timeSeriesData[timeKey][botId] = {
-          botId,
-          botName: bots.find(b => b.id === botId)?.bot_name || 'Unknown',
-          totalConversations: 0,
-          resolvedConversations: 0,
-          resolutionRate: 0,
-          statusCounts: {}
-        };
-      }
-      
       // Update time series data
-      timeSeriesData[timeKey][botId].totalConversations++;
-      if (isResolved) {
-        timeSeriesData[timeKey][botId].resolvedConversations++;
+      if (timeSeriesData[timeKey] && timeSeriesData[timeKey].bots[bot.id]) {
+        const botEntry = timeSeriesData[timeKey].bots[bot.id];
+        botEntry.totalConversations++;
+        
+        if (isResolved) {
+          botEntry.resolvedConversations++;
+        }
+        
+        // Update status counts
+        const statusCountKey = conv.resolution_status || "UNRESOLVED";
+        if (!botEntry.statusCounts[statusCountKey]) {
+          botEntry.statusCounts[statusCountKey] = 0;
+        }
+        botEntry.statusCounts[statusCountKey]++;
       }
-      
-      // Update status counts
-      const status = conv.resolution_status || "UNRESOLVED";
-      if (!timeSeriesData[timeKey][botId].statusCounts[status]) {
-        timeSeriesData[timeKey][botId].statusCounts[status] = 0;
-      }
-      timeSeriesData[timeKey][botId].statusCounts[status]++;
     });
 
-    // Calculate final rates and averages for each bot
-    Object.keys(botResolutionMap).forEach(botId => {
-      const bot = botResolutionMap[botId];
-      if (bot.totalConversations > 0) {
-        bot.resolutionRate = (bot.resolvedConversations / bot.totalConversations) * 100;
-      }
-      
-      if (bot.resolvedConversations > 0 && bot.totalMessagesInResolved) {
-        bot.averageMessagesPerResolution = bot.totalMessagesInResolved / bot.resolvedConversations;
-      }
-    });
+    // Calculate final rates and averages
+    if (botResolution.totalConversations > 0) {
+      botResolution.resolutionRate = (botResolution.resolvedConversations / botResolution.totalConversations) * 100;
+    }
+    
+    if (botResolution.resolvedConversations > 0 && botResolution.totalMessagesInResolved !== undefined && botResolution.totalMessagesInResolved > 0) {
+      botResolution.averageMessagesPerResolution = botResolution.totalMessagesInResolved / botResolution.resolvedConversations;
+    }
 
     // Calculate resolution rates for time series data
     Object.keys(timeSeriesData).forEach(timeKey => {
-      Object.keys(timeSeriesData[timeKey]).forEach(botId => {
-        const entry = timeSeriesData[timeKey][botId];
-        if (entry.totalConversations > 0) {
-          entry.resolutionRate = (entry.resolvedConversations / entry.totalConversations) * 100;
-        }
-      });
+      const entry = timeSeriesData[timeKey].bots[bot.id];
+      if (entry.totalConversations > 0) {
+        entry.resolutionRate = (entry.resolvedConversations / entry.totalConversations) * 100;
+      }
     });
 
     // Convert time series data to sorted array
-    const trends = Object.entries(timeSeriesData)
+    const trends: TrendPeriod[] = Object.entries(timeSeriesData)
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([timeKey, botData]) => {
+      .map(([timeKey, data]) => {
         return {
           period: timeKey,
-          bots: Object.values(botData)
+          bots: Object.values(data.bots)
         };
       });
 
@@ -305,99 +373,16 @@ export async function GET(req: Request) {
         trendDirection,
         statusBreakdown
       },
-      byBot: Object.values(botResolutionMap),
+      bot: {
+        id: bot.id,
+        name: bot.bot_name
+      },
       trends
     }, { status: 200 });
   } catch (error) {
     console.error("Error fetching resolution metrics:", error);
     return NextResponse.json(
       { error: "Error fetching resolution metrics" },
-      { status: 500 }
-    );
-  }
-}
-
-// POST: Update resolution status for a conversation
-export async function POST(req: Request) {
-  try {
-    const session = await getServerSession(authOptions);
-    
-    if (!session || !session.user.email) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-
-    const user = await db.user.findUnique({
-      where: { email: session.user.email }
-    });
-
-    if (!user) {
-      return NextResponse.json(
-        { error: "User not found" },
-        { status: 404 }
-      );
-    }
-
-    // Parse request body
-    const body = await req.json();
-    const { conversationId, status, notes } = body;
-
-    if (!conversationId || !status) {
-      return NextResponse.json(
-        { error: "Conversation ID and status are required" },
-        { status: 400 }
-      );
-    }
-
-    // Validate status
-    const validStatuses = ["RESOLVED", "COMPLETED", "CLOSED", "PENDING", "UNRESOLVED", "ESCALATED"];
-    if (!validStatuses.includes(status)) {
-      return NextResponse.json(
-        { error: "Invalid status. Valid statuses: " + validStatuses.join(", ") },
-        { status: 400 }
-      );
-    }
-
-    // Check if conversation exists and belongs to user's bot
-    const conversation = await db.conversation.findFirst({
-      where: {
-        id: conversationId,
-        bot: {
-          creator_id: user.userId
-        }
-      }
-    });
-
-    if (!conversation) {
-      return NextResponse.json(
-        { error: "Conversation not found or unauthorized" },
-        { status: 404 }
-      );
-    }
-
-    // Update conversation status
-    const updatedConversation = await db.conversation.update({
-      where: { id: conversationId },
-      data: {
-        resolution_status: status,
-        // You might want to add a field for notes
-        // notes: notes
-      }
-    });
-
-    return NextResponse.json({
-      message: "Resolution status updated successfully",
-      conversation: {
-        id: updatedConversation.id,
-        status: updatedConversation.resolution_status
-      }
-    }, { status: 200 });
-  } catch (error) {
-    console.error("Error updating resolution status:", error);
-    return NextResponse.json(
-      { error: "Error updating resolution status" },
       { status: 500 }
     );
   }

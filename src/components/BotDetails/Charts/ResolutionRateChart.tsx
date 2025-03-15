@@ -1,54 +1,152 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 // Define the props interface
 interface ResolutionRateChartProps {
   timeRange: '7d' | '30d' | '90d';
+  botId?: string;
 }
 
-const ResolutionRateChart: React.FC<ResolutionRateChartProps> = ({ timeRange }) => {
-  // Generate random data based on time range
-  const data = useMemo(() => {
-    let days;
-    switch (timeRange) {
-      case '7d': days = 7; break;
-      case '30d': days = 30; break;
-      case '90d': days = 90; break;
-      default: days = 30;
-    }
-    
-    const today = new Date();
-    const result = [];
-    
-    // Generate based on days, but if too many days, create weekly data points instead
-    const interval = days > 30 ? 7 : 1;
-    const labels = days > 30 ? 'weeks' : 'days';
-    
-    for (let i = 0; i < days; i += interval) {
-      const date = new Date();
-      date.setDate(today.getDate() - (days - i));
+const ResolutionRateChart: React.FC<ResolutionRateChartProps> = ({ timeRange, botId }) => {
+  const [data, setData] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      // If no botId is provided, show selection message and don't fetch
+      if (!botId) {
+        setLoading(false);
+        setError("Please select a bot to view resolution data");
+        return;
+      }
       
-      // Base resolution rate between 70% and 95%
-      const baseRate = 70 + Math.random() * 25;
-      // Add a slight upward trend
-      const trendFactor = (i / days) * 10;
-      // Add some randomness
-      const noise = (Math.random() - 0.5) * 5;
-      
-      const resolutionRate = Math.min(98, Math.max(65, baseRate + trendFactor + noise));
-      
-      result.push({
-        date: labels === 'weeks'
-          ? `Week ${Math.floor(i / 7) + 1}`
-          : date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        rate: parseFloat(resolutionRate.toFixed(1))
-      });
-    }
+      try {
+        setLoading(true);
+        setError(null);
+        
+        // Determine the date range based on timeRange prop
+        const endDate = new Date();
+        const startDate = new Date();
+        
+        switch (timeRange) {
+          case '7d': 
+            startDate.setDate(endDate.getDate() - 7);
+            break;
+          case '30d':
+            startDate.setDate(endDate.getDate() - 30);
+            break;
+          case '90d':
+            startDate.setDate(endDate.getDate() - 90);
+            break;
+          default:
+            startDate.setDate(endDate.getDate() - 7);
+        }
+        
+        // Determine the appropriate timeFrame parameter based on timeRange
+        let timeFrame = 'daily';
+        if (timeRange === '90d') {
+          timeFrame = 'weekly';
+        } else if (timeRange === '30d' && startDate.getDate() !== endDate.getDate()) {
+          // If the range spans more than a month, use weekly grouping
+          timeFrame = 'weekly';
+        }
+        
+        // Construct the API URL with query parameters
+        const url = `/api/bot/${botId}/kpi/resolution?startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}`;
+
+        console.log('Fetching resolution data from:', url);
+        
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+          throw new Error(`API returned ${response.status}: ${response.statusText}`);
+        }
+        
+        const responseData = await response.json();
+        console.log('Resolution data received:', responseData);
+        
+        // Transform the API response for the chart
+        const chartData = responseData.trends.map((trend: any) => {
+          // Calculate the overall resolution rate for all bots for this period
+          const totalConversations = trend.bots.reduce((sum: number, bot: any) => sum + bot.totalConversations, 0);
+          const resolvedConversations = trend.bots.reduce((sum: number, bot: any) => sum + bot.resolvedConversations, 0);
+          const resolutionRate = totalConversations > 0 
+            ? (resolvedConversations / totalConversations) * 100 
+            : 0;
+          
+          // Format the date for display
+          let formattedDate;
+          
+          if (timeFrame === 'weekly') {
+            // For weekly data, format as "Week X"
+            if (trend.period.includes('W')) {
+              const weekNum = trend.period.split('W')[1];
+              formattedDate = `Week ${weekNum}`;
+            } else {
+              formattedDate = trend.period;
+            }
+          } else if (timeFrame === 'monthly') {
+            // For monthly data, format as "Mon YYYY"
+            const [year, month] = trend.period.split('-');
+            const date = new Date(parseInt(year), parseInt(month) - 1, 1);
+            formattedDate = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+          } else {
+            // For daily data, format as "Mon DD"
+            const date = new Date(trend.period);
+            formattedDate = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+          }
+          
+          return {
+            date: formattedDate,
+            rate: parseFloat(resolutionRate.toFixed(1))
+          };
+        });
+        
+        setData(chartData);
+      } catch (err: any) {
+        console.error('Error fetching resolution data:', err);
+        setError(err instanceof Error ? err.message : 'Failed to fetch resolution data');
+        setData([]);
+      } finally {
+        setLoading(false);
+      }
+    };
     
-    return result;
-  }, [timeRange]);
+    fetchData();
+  }, [timeRange, botId]);
+
+  if (loading) {
+    return (
+      <div className="h-72 flex items-center justify-center">
+        <div className="text-center px-5 py-3">
+          <div className="text-gray-500">Loading resolution data...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="h-72 flex items-center justify-center">
+        <div className="text-center px-5 py-3">
+          <div className="text-gray-500">{error}</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (data.length === 0) {
+    return (
+      <div className="h-72 flex items-center justify-center">
+        <div className="text-center px-5 py-3">
+          <div className="text-gray-500">No resolution data available for this bot and time period</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <ResponsiveContainer width="100%" height={300}>
@@ -67,8 +165,8 @@ const ResolutionRateChart: React.FC<ResolutionRateChartProps> = ({ timeRange }) 
           tick={{ fontSize: 12, fill: '#6B7280' }}
           tickFormatter={(value) => `${value}%`}
           label={{ 
-            value: 'Resolution Rate (%)', 
-            angle: -90, 
+            value: 'Resolution Rate (%)',
+            angle: -90,
             position: 'insideLeft',
             style: { textAnchor: 'middle', fill: '#6B7280' }
           }}
@@ -84,10 +182,10 @@ const ResolutionRateChart: React.FC<ResolutionRateChartProps> = ({ timeRange }) 
           }}
         />
         <Line 
-          type="monotone" 
-          dataKey="rate" 
-          stroke="#3B82F6" 
-          strokeWidth={2} 
+          type="monotone"
+          dataKey="rate"
+          stroke="#3B82F6"
+          strokeWidth={2}
           dot={{ r: 3, strokeWidth: 2 }}
           activeDot={{ r: 5, strokeWidth: 2 }}
         />

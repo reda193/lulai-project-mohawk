@@ -15,7 +15,7 @@ const KnowledgeBasePage = () => {
   // Get agent ID from path
   const pathname = usePathname();
   const pathSegments = pathname?.split('/') || [];
-  const agentId = pathSegments.length > 2 ? pathSegments[2] : null;
+  const agentId = pathSegments.length > 2 ? pathSegments[2] : undefined;
 
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -82,7 +82,7 @@ const KnowledgeBasePage = () => {
                 <Database className="w-5 h-5 mr-2 text-blue-500" />
                 Knowledge Base Utilization
               </h2>
-              <KnowledgeBaseChart timeRange={timeRange} />
+              <KnowledgeBaseChart timeRange={timeRange} botId={agentId}/>
             </div>
             
             {/* Knowledge Base Details */}

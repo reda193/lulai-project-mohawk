@@ -26,7 +26,7 @@ const updateAppearanceSchema = z.object({
 
 export async function POST(
   req: NextRequest,
-  context: any // 👈 Tells TypeScript to ignore strict type checking
+  context: any 
 ) {
   console.log("POST request received for bot appearance update");
 

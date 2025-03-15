@@ -6,11 +6,11 @@ import { db } from "@/lib/db";
 
 export async function GET(
   req: NextRequest,
-  context: any,
-  { params }: { params: { botId: string } }
+  context: any
 ) {
   try {
-    const { botId } = params;
+    const params = await context.params;
+    const botId = params.botId;
     
     if (!botId) {
       return NextResponse.json(
