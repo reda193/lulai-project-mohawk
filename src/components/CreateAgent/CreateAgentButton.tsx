@@ -1,21 +1,30 @@
-import { FC } from 'react';
+'use client';
+
 import { PlusIcon } from 'lucide-react';
 import Link from 'next/link';
-
 interface CreateAgentButtonProps {
-  onClick?: () => void; // Made optional since we'll primarily use the Link
+  onClick?: () => void;
 }
 
-const CreateAgentButton: FC<CreateAgentButtonProps> = ({ onClick }) => {
+const CreateAgentButton: React.FC<CreateAgentButtonProps> = ({ onClick }) => {
+  const handleClick = () => {
+    if (onClick) {
+      onClick();
+    } else {
+      console.log('Creating new agent...');
+      // Default implementation or redirection
+    }
+  };
+
   return (
     <Link href="/agents/new">
-      <button
-        onClick={onClick}
-        className="flex items-center space-x-2 bg-gray-100 px-4 py-2 rounded-lg hover:bg-gray-200"
-      >
-        <PlusIcon className="w-4 h-4" />
-        <span className="text-sm font-medium">Create New Agent</span>
-      </button>
+    <button
+      onClick={handleClick}
+      className="flex items-center space-x-2 text-gray-600 hover:text-gray-900"
+    >
+      <PlusIcon className="w-5 h-5" />
+      <span>Create New Agent</span>
+    </button>
     </Link>
   );
 };

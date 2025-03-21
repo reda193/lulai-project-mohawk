@@ -13,6 +13,14 @@ const Sidebar = () => {
         <SidebarLink href="/analytics" icon={<BarChart size={20} />} text="Analytics" />
         <SidebarLink href="/conversations" icon={<MessageCircle size={20} />} text="Conversations" />
         <SidebarLink href="/integrations" icon={<Settings size={20} />} text="Integrations" />
+        <SidebarLink href="/client" icon={<Users size={20} />} text="Client Management" />
+        <SidebarLink href="/subscription" icon={<Users size={20} />} text="Subscription Management" />
+        <SidebarLink href="/ai" icon={<Users size={20} />} text="AI Management" />
+        <SidebarLink href="/support" icon={<Users size={20} />} text="Support" />
+        <SidebarLink href="/feature" icon={<Users size={20} />} text="Feature Management" />
+        <SidebarLink href="/apim" icon={<Users size={20} />} text="Api Management" />
+        <SidebarLink href="/security" icon={<Users size={20} />} text="Security Management" />
+        <SidebarLink href="/system" icon={<Users size={20} />} text="System Management" />
       </nav>
     </div>
   );

@@ -1,8 +1,6 @@
 'use client';
 
 import { useState, ChangeEvent, FormEvent } from "react";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faArrowLeft } from "@fortawesome/free-solid-svg-icons";
 import { SignUpFormProps } from './types';
 
 interface FormData {
@@ -178,7 +176,7 @@ const SignUpForm: React.FC<SignUpFormProps> = ({ onSubmit, onBack }) => {
                     onClick={onBack}
                     className="absolute left-6 top-6 text-gray-600 hover:text-gray-900"
                 >
-                    <FontAwesomeIcon icon={faArrowLeft} className="w-5 h-5" />
+                    <span className="w-5 h-5">←</span> {/* Replaced FontAwesome icon with a simple arrow */}
                 </button>
                 <h2 className="text-2xl font-semibold">Create Account</h2>
                 <p className="text-sm text-gray-500 mt-2">Sign up to get started</p>

@@ -57,7 +57,7 @@ const SubscriptionPicker = ({ onComplete }: { onComplete: (planType: 'FREE' | 'B
   };
 
   const handleContinue = () => {
-    router.push('/home');
+    window.location.href = '/dashboard';
   };
 
   return (

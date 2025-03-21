@@ -1,29 +1,95 @@
 // app/dashboard/page.tsx
-'use client';
-
-import { useState } from 'react';
-import { MenuIcon } from 'lucide-react';
-import { ChatbotAgent, Customer } from '@/types/dashboard';
+import { getServerSession } from "next-auth/next";
+import { redirect } from "next/navigation";
+import { authOptions } from "@/lib/auth";
+import { Customer } from '@/types/dashboard';
+import { db } from "@/lib/db";
 
 // Import components
-import Sidebar from '@/components/Sidebar/Sidebar';
-import AgentCard from '@/components/ChatbotAgents/AgentCard';
+import SidebarWrapper from '@/components/Sidebar/SidebarWrapper';
+import ChatbotAgentSlider from '@/components/ChatbotAgents/ChatbotAgentSlider';
 import VisitorsMap from '@/components/Analytics/VisitorsMap';
 import RepliesChart from '@/components/Analytics/RepliesChart';
 import CustomerTable from '@/components/Customers/CustomerTable';
 import CreateAgentButton from '@/components/CreateAgent/CreateAgentButton';
 
-const DashboardPage = () => {
-  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
-  
-  // This would come from API
-  const chatbotAgents: ChatbotAgent[] = [
-    { name: 'Shopify', status: 'Active' },
-    { name: 'Testing', status: 'Active' },
-    { name: 'Shopify GA', status: 'Active' },
-  ];
+// Define interfaces to match what the component expects
+interface BotAppearance {
+  bot_avatar?: string | null;
+  company_logo?: string | null;
+  accent_color?: string | null;
+}
 
-  // This would come from API
+interface ChatbotAgent {
+  id: string;
+  name: string;
+  status: string;
+  appearance?: BotAppearance | null;
+}
+
+export default async function DashboardPage() {
+  // Get session on server
+  const session = await getServerSession(authOptions);
+  
+  // Check authentication
+  if (!session) {
+    redirect('/auth/signin');
+  }
+  
+  // Explicitly type the chatbotAgents array
+  let chatbotAgents: ChatbotAgent[] = [];
+  
+  // Fetch user data including role
+  let userRole = 'MEMBER'; // Default role if not found
+  
+  try {
+    // Fetch bots directly from the database
+    if (session.user?.email) {
+      const user = await db.user.findUnique({
+        where: { email: session.user.email }
+      });
+      
+      if (user) {
+        // Get the user's role
+        userRole = user.role;
+        
+        const bots = await db.bot.findMany({
+          where: {
+            creator_id: user.userId
+          },
+          include: {
+            appearance: true
+          },
+          orderBy: {
+            created_at: 'desc'
+          }
+        });
+        
+        // Map to the expected format with explicit typing
+        chatbotAgents = bots.map(bot => ({
+          id: bot.id,
+          name: bot.bot_name,
+          status: 'Active', // Default status
+          appearance: bot.appearance?.[0] ? {
+            bot_avatar: bot.appearance[0].bot_avatar,
+            company_logo: bot.appearance[0].company_logo,
+            accent_color: bot.appearance[0].accent_color
+          } : null
+        }));
+      }
+    }
+  } catch (error) {
+    console.error('Error fetching bots:', error);
+    
+    // Fallback data in case the database query fails
+    chatbotAgents = [
+      { id: '1', name: 'Shopify', status: 'Active' },
+      { id: '2', name: 'Testing', status: 'Active' },
+      { id: '3', name: 'Shopify GA', status: 'Active' },
+    ];
+  }
+
+  // This would come from your database or API
   const topCustomers: Customer[] = [
     { name: 'John Doe', total: '$8,000.00', country: 'USA', date: '2023-10-15', status: 'Active' },
     { name: 'Jane Smith', total: '$5,000.00', country: 'Canada', date: '2023-10-15', status: 'Pending' },
@@ -32,91 +98,57 @@ const DashboardPage = () => {
     { name: 'David Wilson', total: '$3,000.00', country: 'Germany', date: '2023-10-15', status: 'Active' },
   ];
 
-  // Handler for creating new agent
-  const handleCreateAgent = () => {
-    console.log('Creating new agent...');
-    // Implementation for creating new agent would go here
-  };
-
-  // Handler for agent card click
-  const handleAgentClick = (agent: ChatbotAgent) => {
-    console.log('Agent clicked:', agent.name);
-    // Implementation for handling agent click would go here
+  // Enhanced user data for sidebar, now including role
+  const userData = {
+    firstName: session.user?.first_name || '',
+    lastName: session.user?.last_name || '',
+    role: userRole // Pass the user role to the sidebar
   };
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      {/* Menu Toggle Button */}
-      <button 
-        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-        className="fixed top-4 left-4 z-50 p-2 bg-white rounded-lg shadow-md hover:bg-gray-100"
-      >
-        <MenuIcon className="w-5 h-5 text-gray-600" />
-      </button>
+      {/* Sidebar Wrapper now contains the main content as children and receives user role */}
+      <SidebarWrapper userData={userData}>
+        {/* Main Content - No longer needs ml-64 as it's now dynamic in SidebarWrapper */}
+        <div className="p-8">
+          <div className="max-w-7xl mx-auto">
+            {/* Header */}
+            <header className="flex justify-between items-center mb-8">
+              <h1 className="text-2xl font-bold text-gray-900">Home</h1>
+              <div className="flex items-center space-x-2">
+                <div className="w-2 h-2 rounded-full bg-gray-400"></div>
+                <div className="w-2 h-2 rounded-full bg-gray-400"></div>
+              </div>
+            </header>
 
-      {/* Sidebar */}
-      <Sidebar 
-        isOpen={isSidebarOpen} 
-        onToggle={() => setIsSidebarOpen(!isSidebarOpen)} 
-      />
-
-      {/* Main Content */}
-      <div className={`
-        flex-1 transition-all duration-300
-        ${isSidebarOpen ? 'ml-64' : 'ml-0'}
-        p-8
-      `}>
-        <div className="max-w-7xl mx-auto">
-          {/* Header */}
-          <header className="flex justify-between items-center mb-8">
-            <h1 className="text-2xl font-bold text-gray-900">Home</h1>
-            <div className="flex items-center space-x-2">
-              <div className="w-2 h-2 rounded-full bg-gray-400"></div>
-              <div className="w-2 h-2 rounded-full bg-gray-400"></div>
+            {/* Create New Agent Section */}
+            <div className="bg-gray-100 p-4 rounded-lg mb-8">
+              <CreateAgentButton />
             </div>
-          </header>
 
-          {/* Create New Agent Section */}
-          <div className="bg-gray-100 p-4 rounded-lg mb-8">
-            <CreateAgentButton onClick={handleCreateAgent} />
+            {/* Chatbot Agents Slider - replaces the grid */}
+            <section className="mb-8">
+              <ChatbotAgentSlider agents={chatbotAgents} />
+            </section>
+
+            {/* Quick Analytics */}
+            <section className="mb-8">
+              <h2 className="text-lg font-semibold mb-4 text-gray-900">
+                Quick Analytics
+              </h2>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <VisitorsMap data={[]} /> 
+                <RepliesChart data={[]} /> 
+              </div>
+            </section>
+
+            {/* Top Customers */}
+            <section className="mb-8">
+              <CustomerTable customers={topCustomers} />
+            </section>
           </div>
-
-          {/* Chatbot Agents */}
-          <section className="mb-8">
-            <h2 className="text-lg font-semibold mb-4 text-gray-900">
-              Chatbot Agents Deployed
-            </h2>
-            <div className="grid grid-cols-3 gap-6">
-              {chatbotAgents.map((agent, index) => (
-                <AgentCard 
-                  key={index}
-                  name={agent.name}
-                  status={agent.status}
-                  onClick={() => handleAgentClick(agent)}
-                />
-              ))}
-            </div>
-          </section>
-
-          {/* Quick Analytics */}
-          <section className="mb-8">
-            <h2 className="text-lg font-semibold mb-4 text-gray-900">
-              Quick Analytics
-            </h2>
-            <div className="grid grid-cols-2 gap-8">
-              <VisitorsMap data={[]} /> {/* Would pass actual visitor data from API */}
-              <RepliesChart data={[]} /> {/* Would pass actual reply data from API */}
-            </div>
-          </section>
-
-          {/* Top Customers */}
-          <section className="mb-8">
-            <CustomerTable customers={topCustomers} />
-          </section>
         </div>
-      </div>
+      </SidebarWrapper>
     </div>
   );
-};
-
-export default DashboardPage;
+}
