@@ -26,7 +26,7 @@ async function main() {
   await prisma.user.deleteMany({});
   
   // Hash the password
-  const hashedPassword = await hash('Admintest123', 10);
+  const hashedPassword = await hash('Admintest123!', 10);
   
   // Create test users with different roles
   const users = [];
@@ -463,6 +463,62 @@ async function main() {
 main()
   .catch((e) => {
     console.error('Error during seeding:', e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });
+
+  const prisma2 = new PrismaClient();
+
+async function main2() {
+  // Seed Feature Flags
+  await prisma.featureFlag.createMany({
+    data: [
+      {
+        
+        featureName: 'Sample Feature Flag 1',
+        description: 'This is the first sample feature flag.',
+        enabledFor: ['all'],
+        isActive: true,
+      },
+      {
+       
+        featureName: 'Sample Feature Flag 2',
+        description: 'This is the second sample feature flag.',
+        enabledFor: ['client1', 'client2'],
+        isActive: false,
+      },
+    ],
+  });
+
+  // Seed Custom Features
+  await prisma.customFeature.createMany({
+    data: [
+      {
+        
+        clientId: 'client1',
+        featureName: 'Sample Custom Feature 1',
+        description: 'This is the first sample custom feature.',
+        status: 'DRAFT',
+      },
+      {
+       
+        clientId: 'client2',
+        featureName: 'Sample Custom Feature 2',
+        description: 'This is the second sample custom feature.',
+        status: 'TESTING',
+        sandboxUrl: 'https://sandbox.example.com/2',
+      },
+    ],
+  });
+
+  console.log('Mock data seeded successfully!');
+}
+
+main2()
+  .catch((e) => {
+    console.error('Error seeding mock data:', e);
     process.exit(1);
   })
   .finally(async () => {

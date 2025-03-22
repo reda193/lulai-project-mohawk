@@ -266,3 +266,25 @@ enum BotModel {
   CLAUDE_3_HAIKU
   GEMINI_PRO
 }
+
+model FeatureFlag {
+  id          String   @id @default(cuid()) // Use String for UUID or cuid()
+  featureName String
+  description String
+  enabledFor  String[] @default(["all"]) // Array of strings
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model CustomFeature {
+  id            String   @id @default(cuid())
+  clientId      String
+  featureName   String
+  description   String
+  status        String   @default("DRAFT")
+  sandboxUrl    String?
+  productionUrl String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}

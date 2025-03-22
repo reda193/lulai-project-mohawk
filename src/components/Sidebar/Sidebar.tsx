@@ -16,7 +16,9 @@ import {
   StarIcon,
   ServerIcon,
   BriefcaseIcon,
-  MessagesSquareIcon
+  MessagesSquareIcon,
+  NetworkIcon,
+  BrainIcon
 } from 'lucide-react';
 import SidebarItem from './SidebarItem';
 
@@ -66,7 +68,9 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onToggle, userName }) => {
     { icon: HeadphonesIcon, label: 'Support', href: '/support' },
     { icon: ShieldAlertIcon, label: 'Security', href: '/security' },
     { icon: ServerIcon, label: 'System', href: '/system' },
-    { icon: BriefcaseIcon, label: 'Superadmin', href: '/superadmin' }
+    { icon: UsersIcon, label: 'Client Management', href: '/client' },
+    { icon: BrainIcon, label: 'AI Management', href: '/ai' },
+    { icon: NetworkIcon, label: 'API Management', href: '/apim' }
   ] : [];
   
   // Generate display name safely, with fallback to "User"
