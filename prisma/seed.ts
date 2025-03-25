@@ -524,3 +524,107 @@ main2()
   .finally(async () => {
     await prisma.$disconnect();
   });
+
+  async function main3() {
+    // Seed invoices
+    // First create users if they don't exist
+  const users = await prisma.user.findMany();
+  if (users.length < 3) {
+    await prisma.user.createMany({
+      data: [
+        { id: 1, email: 'client1@example.com', /* other required fields */ },
+        { id: 2, email: 'client2@example.com', /* other required fields */ },
+        { id: 3, email: 'client3@example.com', /* other required fields */ }
+      ]
+    });
+  }
+
+  const invoices = await prisma.invoice.createMany({
+    data: [
+      {
+        clientId: '1',
+        amount: 100,
+        status: 'paid',
+        dueDate: new Date('2023-10-01'),
+      },
+      {
+        clientId: '2',
+        amount: 50,
+        status: 'failed',
+        dueDate: new Date('2023-10-05'),
+        attempts: 2,
+      },
+      {
+        clientId: '3',
+        amount: 200,
+        status: 'pending',
+        dueDate: new Date('2023-10-10'),
+      },
+    ],
+    });
+  
+    await prisma.subscription.createMany({
+      skipDuplicates: true, // Skip if subscription already exists
+      data: [
+        {
+          userId: 1, // Unique user
+          plan_type: 'PRO',
+          status: 'ACTIVE',
+          current_period_start: new Date('2023-09-01'),
+          current_period_end: new Date('2023-10-01'),
+          cancel_at_period_end: false,
+        },
+        {
+          userId: 2, // Unique user
+          plan_type: 'BASIC',
+          status: 'TRIALING',
+          current_period_start: new Date('2023-10-01'),
+          current_period_end: new Date('2023-11-01'),
+          cancel_at_period_end: false,
+        },
+        {
+          userId: 3, // Unique user
+          plan_type: 'PRO',
+          status: 'CANCELED',
+          current_period_start: new Date('2023-08-01'),
+          current_period_end: new Date('2023-09-30'),
+          cancel_at_period_end: true,
+        },
+      ],
+    });
+  
+    // Seed payments
+    const createdInvoices = await prisma.invoice.findMany();
+  
+  // Now create payments with the correct invoice IDs
+  await prisma.payment.createMany({
+    data: [
+      {
+        clientId: '1',
+        invoiceId: createdInvoices[0].id, // Use actual invoice ID
+        amount: 100,
+        date: new Date('2023-10-01'),
+        method: 'credit_card',
+      },
+      {
+        clientId: '2',
+        invoiceId: createdInvoices[1].id, // Use actual invoice ID
+        amount: 50,
+        date: new Date('2023-10-05'),
+        method: 'paypal',
+      },
+    ],
+    });
+  
+    console.log('Mock data seeded successfully!');
+  }
+  
+  main3()
+    .catch((e) => {
+      console.error('Error seeding mock data:', e);
+      process.exit(1);
+    })
+    .finally(async () => {
+      await prisma.$disconnect();
+    });
+  

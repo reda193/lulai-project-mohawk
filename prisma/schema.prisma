@@ -288,3 +288,23 @@ model CustomFeature {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
+
+model Invoice {
+  id       String   @id @default(uuid())
+  clientId String
+  amount   Float
+  status   String   // e.g., "paid", "failed", "pending"
+  dueDate  DateTime
+  attempts Int?     // Optional (only used in some invoices)
+  payments Payment[] // Relation to payments
+}
+
+model Payment {
+  id        String   @id @default(uuid())
+  clientId  String
+  invoiceId String
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id])
+  amount    Float
+  date      DateTime
+  method    String   // e.g., "credit_card", "paypal"
+}

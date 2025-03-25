@@ -1,5 +1,5 @@
 'use client';
-import { FC, useState } from 'react';
+import { FC, useEffect, useState } from 'react';
 import { MoreHorizontalIcon, AlertTriangleIcon, CreditCardIcon, Tag, Plus, Edit } from 'lucide-react';
 
 // Types
@@ -400,84 +400,34 @@ interface SubscriptionManagementProps {
     payments: Payment[];
   };
 }
+const SubscriptionManagement: FC = () => { 
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
 
-const SubscriptionManagement: FC<SubscriptionManagementProps> = ({ initialData = { 
-  subscriptions: [
-    {
-      id: '1',
-      clientName: 'Client A',
-      plan: 'Pro',
-      status: 'active',
-      startDate: '2023-09-01',
-      amount: 100,
-      features: ['Unlimited users', '24/7 support', 'Advanced analytics'],
-    },
-    {
-      id: '2',
-      clientName: 'Client B',
-      plan: 'Basic',
-      status: 'trial',
-      startDate: '2023-10-01',
-      amount: 50,
-      features: ['Up to 10 users', 'Email support', 'Basic analytics'],
-    },
-    {
-      id: '3',
-      clientName: 'Client C',
-      plan: 'Enterprise',
-      status: 'canceled',
-      startDate: '2023-08-01',
-      endDate: '2023-09-30',
-      amount: 200,
-      features: ['Unlimited users', 'Dedicated account manager', 'Custom integrations'],
-    },
-  ],
-  invoices: [
-    {
-      id: '1',
-      clientId: '1',
-      amount: 100,
-      status: 'paid',
-      dueDate: '2023-10-01',
-    },
-    {
-      id: '2',
-      clientId: '2',
-      amount: 50,
-      status: 'failed',
-      dueDate: '2023-10-05',
-      attempts: 2,
-    },
-    {
-      id: '3',
-      clientId: '3',
-      amount: 200,
-      status: 'pending',
-      dueDate: '2023-10-10',
-    },
-  ],
-  payments: [
-    {
-      id: '1',
-      clientId: '1',
-      invoiceId: '1',
-      amount: 100,
-      date: '2023-10-01',
-      method: 'credit_card',
-    },
-    {
-      id: '2',
-      clientId: '2',
-      invoiceId: '2',
-      amount: 50,
-      date: '2023-10-05',
-      method: 'paypal',
-    },
-  ],
-} }) => {
-  const [subscriptions, setSubscriptions] = useState<Subscription[]>(initialData.subscriptions);
-  const [invoices, setInvoices] = useState<Invoice[]>(initialData.invoices);
-  const [payments, setPayments] = useState<Payment[]>(initialData.payments);
+  useEffect(() => {
+    const fetchSubscriptions = async () => {
+      const response = await fetch('/api/admin/subscriptions');
+      const { subscriptions } = await response.json();
+      setSubscriptions(subscriptions);
+    };
+
+    const fetchInvoices = async () => {
+      const response = await fetch('/api/admin/invoices');
+      const { invoices } = await response.json();
+      setInvoices(invoices);
+    };
+
+    const fetchPayments = async () => {
+      const response = await fetch('/api/admin/payments');
+      const { payments } = await response.json();
+      setPayments(payments);
+    };
+   fetchPayments();
+   fetchSubscriptions();
+   fetchInvoices();
+ }, [subscriptions, invoices, payments]);
+
   const [selectedSubscription, setSelectedSubscription] = useState<Subscription | null>(null);
   const [showManualAdjustment, setShowManualAdjustment] = useState(false);
   const [showPlanCustomization, setShowPlanCustomization] = useState(false);
