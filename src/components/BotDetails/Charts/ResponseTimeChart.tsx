@@ -1,82 +1,143 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface ResponseTimeChartProps {
   timeRange: '7d' | '30d' | '90d';
+  botId?: string; // Optional bot ID to filter by specific bot
 }
 
-// Seeded random number generator
-function seededRandom(seed: number) {
-  const x = Math.sin(seed) * 10000;
-  return x - Math.floor(x);
-}
+const ResponseTimeChart: React.FC<ResponseTimeChartProps> = ({ timeRange, botId }) => {
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [chartData, setChartData] = useState<any[]>([]);
+  const [avgResponseTime, setAvgResponseTime] = useState('0.0');
+  const [totalMessages, setTotalMessages] = useState(0);
 
-const ResponseTimeChart: React.FC<ResponseTimeChartProps> = ({ timeRange }) => {
-  // Generate random data based on time range
-  const data = useMemo(() => {
-    let days;
-    switch (timeRange) {
-      case '7d': days = 7; break;
-      case '30d': days = 30; break;
-      case '90d': days = 90; break;
-      default: days = 30;
-    }
-
-    // Use a consistent seed based on time range
-    const seedMap = {
-      '7d': 1,
-      '30d': 2,
-      '90d': 3
+  useEffect(() => {
+    const fetchResponseTimeData = async () => {
+      // If no botId is provided, show selection message and don't fetch
+      if (!botId) {
+        setIsLoading(false);
+        setError("Please select a bot to view response time data");
+        return;
+      }
+      
+      setIsLoading(true);
+      setError(null);
+      
+      try {
+        // Calculate start date based on selected time range
+        const endDate = new Date();
+        const startDate = new Date();
+        
+        switch (timeRange) {
+          case '7d':
+            startDate.setDate(endDate.getDate() - 7);
+            break;
+          case '30d':
+            startDate.setDate(endDate.getDate() - 30);
+            break;
+          case '90d':
+            startDate.setDate(endDate.getDate() - 90);
+            break;
+        }
+        
+        // Determine groupBy based on timeRange
+        const groupBy = timeRange === '90d' ? 'week' : 'day';
+        
+        // Construct URL with required botId
+        const url = `/api/bot/${botId}/kpi/response?startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}&groupBy=${groupBy}`;
+        
+        console.log('Fetching response time data from:', url);
+        
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+          throw new Error(`API returned ${response.status}: ${response.statusText}`);
+        }
+        
+        const responseData = await response.json();
+        console.log('Response time data received:', responseData);
+        
+        // Format data for the chart - filter out null values
+        const formattedChartData = (responseData.timeSeriesData || [])
+          .filter((point: any) => point.averageResponseTimeSec !== null)
+          .map((point: any) => ({
+            name: point.period,
+            time: point.averageResponseTimeSec || 0,
+            messageCount: point.messageCount
+          }));
+        
+        setChartData(formattedChartData);
+        
+        // Set stats from summary
+        if (responseData.summary) {
+          setAvgResponseTime(typeof responseData.summary.averageResponseTimeSec === 'number'
+            ? responseData.summary.averageResponseTimeSec.toFixed(2)
+            : '0.00');
+          setTotalMessages(responseData.summary.totalMessages || 0);
+        }
+      } catch (err) {
+        console.error('Error fetching response time data:', err);
+        setError(err instanceof Error ? err.message : 'Failed to fetch response time data');
+        setChartData([]);
+      } finally {
+        setIsLoading(false);
+      }
     };
-    const baseSeed = seedMap[timeRange] || 1;
+    
+    fetchResponseTimeData();
+  }, [timeRange, botId]);
 
-    // Use fewer data points for longer time ranges
-    const interval = days > 30 ? 7 : days > 7 ? 3 : 1;
-    const numPoints = Math.ceil(days / interval);
-
-    const result = [];
-    let prevTime = 2.5; // Starting point in seconds
-
-    for (let i = 0; i < numPoints; i++) {
-      // Use seeded random for consistent "randomness"
-      const trend = -0.5 * (i / numPoints);
-      const noise = (seededRandom(baseSeed + i) - 0.5) * 0.8;
-      prevTime = Math.max(0.8, prevTime + trend + noise);
-
-      const date = new Date();
-      date.setDate(date.getDate() - (numPoints - i - 1) * interval);
-
-      result.push({
-        name: timeRange === '90d'
-          ? `Week ${Math.floor(i / 4) + 1}`
-          : timeRange === '30d'
-           ? date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-           : date.toLocaleDateString('en-US', { weekday: 'short' }),
-        time: parseFloat(prevTime.toFixed(2))
-      });
-    }
-
-    return result;
-  }, [timeRange]);
-
-  // Calculate average response time
-  const avgResponseTime = useMemo(() => {
-    const sum = data.reduce((acc, item) => acc + item.time, 0);
-    return (sum / data.length).toFixed(2);
-  }, [data]);
+  // Display loading state
+  if (isLoading) {
+    return (
+      <div className="h-72 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-yellow-500 mx-auto"></div>
+          <p className="mt-2 text-gray-500 text-sm">Loading response time data...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  // Display error or selection state
+  if (error) {
+    return (
+      <div className="h-72 flex items-center justify-center">
+        <div className="text-center px-5 py-3">
+          <div className="text-gray-500">{error}</div>
+        </div>
+      </div>
+    );
+  }
+  
+  // Display empty state
+  if (chartData.length === 0 || totalMessages === 0) {
+    return (
+      <div className="h-72 flex items-center justify-center">
+        <div className="text-center px-5 py-3">
+          <div className="text-gray-500">No response time data available</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="h-72">
-      <div className="text-center mb-2">
-        <div className="text-sm text-gray-500">Average Response Time</div>
-        <div className="text-2xl font-bold">{avgResponseTime}s</div>
+    <div className="h-72 flex flex-col">
+      <div className="mb-2 flex justify-center">
+        <div className="text-center px-5 py-3 bg-gray-50 rounded-lg">
+          <div className="text-sm text-gray-500">Average Response Time</div>
+          <div className="text-3xl font-bold">{avgResponseTime}s</div>
+          <div className="text-xs text-gray-400 mt-1">Based on {totalMessages.toLocaleString()} messages</div>
+        </div>
       </div>
       
-      <ResponsiveContainer width="100%" height="85%">
+      <ResponsiveContainer width="100%" height="100%">
         <AreaChart
-          data={data}
+          data={chartData}
           margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
         >
           <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -93,7 +154,9 @@ const ResponseTimeChart: React.FC<ResponseTimeChartProps> = ({ timeRange }) => {
             tickFormatter={(value) => `${value}s`}
           />
           <Tooltip
-            formatter={(value: number) => [`${value}s`, 'Response Time']}
+            formatter={(value: number) => [`${value.toFixed(2)}s`, 'Response Time']}
+            labelFormatter={(label) => `${label}`}
+            itemStyle={{ color: '#F59E0B' }}
             contentStyle={{
               backgroundColor: '#fff',
               borderRadius: '0.5rem',

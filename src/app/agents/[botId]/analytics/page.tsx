@@ -17,7 +17,6 @@ const AgentAnalyticsPage = () => {
   const pathname = usePathname();
   const pathSegments = pathname?.split('/') || [];
   const agentId = pathSegments.length > 2 ? pathSegments[2] : null;
-
   useEffect(() => {
     const fetchAgentDetails = async () => {
       if (!agentId) {

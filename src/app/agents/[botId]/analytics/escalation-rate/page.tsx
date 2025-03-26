@@ -15,7 +15,7 @@ const EscalationRatePage = () => {
   // Get agent ID from path
   const pathname = usePathname();
   const pathSegments = pathname?.split('/') || [];
-  const agentId = pathSegments.length > 2 ? pathSegments[2] : null;
+  const agentId = pathSegments.length > 2 ? pathSegments[2] : undefined;
 
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -82,7 +82,7 @@ const EscalationRatePage = () => {
                 <AlertCircle className="w-5 h-5 mr-2 text-red-500" />
                 Escalation Rate
               </h2>
-              <EscalationRateChart timeRange={timeRange} />
+              <EscalationRateChart timeRange={timeRange} botId={agentId}/>
             </div>
             
             {/* Escalation Details */}

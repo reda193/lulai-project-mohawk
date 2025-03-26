@@ -29,7 +29,7 @@ interface Conversation {
   };
   status: 'active' | 'resolved' | 'pending' | 'escalated';
   unread?: boolean;
-  messages: Message[];
+  messages?: Message[];
 }
 
 const AgentConversationsPage = () => {
@@ -39,9 +39,12 @@ const AgentConversationsPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [searchInputValue, setSearchInputValue] = useState<string>('');
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
+  const [isLoadingConversation, setIsLoadingConversation] = useState<boolean>(false);
   const [replyText, setReplyText] = useState<string>('');
+  const [isSending, setIsSending] = useState<boolean>(false);
   
   // Get agent ID from path
   const pathname = usePathname();
@@ -49,7 +52,7 @@ const AgentConversationsPage = () => {
   const agentId = pathSegments.length > 2 ? pathSegments[2] : null;
 
   // Format timestamp to readable format
-  const formatTimestamp = (timestamp: Date) => {
+  const formatTimestamp = (timestamp: Date | string) => {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const yesterday = new Date(today);
@@ -66,8 +69,9 @@ const AgentConversationsPage = () => {
     }
   };
 
+  // Fetch initial data: bot details and conversation list
   useEffect(() => {
-    const fetchAgentDetails = async () => {
+    const fetchData = async () => {
       if (!agentId) {
         setError('No agent ID found in URL');
         setIsLoading(false);
@@ -77,159 +81,235 @@ const AgentConversationsPage = () => {
       try {
         setIsLoading(true);
         
-        const response = await fetch(`/api/bot/${agentId}`);
+        // Fetch bot details
+        const botResponse = await fetch(`/api/bot/${agentId}`);
         
-        if (!response.ok) {
-          throw new Error(`Failed to fetch agent details. Status: ${response.status}`);
+        if (!botResponse.ok) {
+          throw new Error(`Failed to fetch agent details. Status: ${botResponse.status}`);
         }
         
-        const data = await response.json();
+        const botData = await botResponse.json();
         
-        const botData = data.bot;
-        
-        if (!botData) {
+        if (!botData.bot) {
           throw new Error('Bot data not found in response');
         }
         
         setAgent({
-          id: botData.id,
-          name: botData.bot_name || 'Unnamed Agent',
-          appearance: Array.isArray(botData.appearance) && botData.appearance.length > 0
-            ? botData.appearance[0]
-            : botData.appearance || null
+          id: botData.bot.id,
+          name: botData.bot.bot_name || 'Unnamed Agent',
+          appearance: Array.isArray(botData.bot.appearance) && botData.bot.appearance.length > 0
+            ? botData.bot.appearance[0]
+            : botData.bot.appearance || null
         });
         
-        // Mock conversations data - in a real app, this would be fetched from an API
-        const mockConversations = generateMockConversations();
-        setConversations(mockConversations);
-        
-        if (mockConversations.length > 0) {
-          setSelectedConversation(mockConversations[0]);
-        }
-      } catch (error: unknown) {
-        console.error('Error fetching agent details:', error);
-        
-        let errorMessage = 'Failed to load agent details';
-        
-        if (error instanceof Error) {
-          errorMessage += `: ${error.message}`;
-        } else if (typeof error === 'string') {
-          errorMessage += `: ${error}`;
-        } else if (error && typeof error === 'object' && 'message' in error) {
-          errorMessage += `: ${error.message}`;
-        }
-        
-        setError(errorMessage);
+        // Fetch conversations
+        await fetchConversations();
+      } catch (error: any) {
+        console.error('Error fetching data:', error);
+        setError(typeof error === 'string' ? error : error.message || 'Failed to load data');
       } finally {
         setIsLoading(false);
       }
     };
 
     if (agentId) {
-      fetchAgentDetails();
+      fetchData();
     }
   }, [agentId]);
 
-  // Generate mock conversation data
-  const generateMockConversations = (): Conversation[] => {
-    const now = new Date();
-    const userNames = ['John Doe', 'Sarah Smith', 'Mike Johnson', 'Emma Wilson', 'Alex Chen', 'Taylor Brown', 'Jordan Lee'];
-    const statusOptions = ['active', 'resolved', 'pending', 'escalated'];
-    const randomTexts = [
-      "Hi, I need help with my account",
-      "Can you tell me about your pricing?",
-      "I'm having trouble with your product",
-      "How do I reset my password?",
-      "Do you offer enterprise plans?",
-      "When will the new features be released?",
-      "I think I found a bug in your app"
-    ];
+  // Fetch conversations list
+  const fetchConversations = async () => {
+    if (!agentId) return;
     
-    return Array.from({ length: 10 }, (_, i) => {
-      const randomDate = new Date(now.getTime() - Math.floor(Math.random() * 7) * 24 * 60 * 60 * 1000);
-      const status = statusOptions[Math.floor(Math.random() * statusOptions.length)] as 'active' | 'resolved' | 'pending' | 'escalated';
-      const userName = userNames[Math.floor(Math.random() * userNames.length)];
-      const lastMessageText = randomTexts[Math.floor(Math.random() * randomTexts.length)];
+    try {
+      // Build URL with filters
+      let url = `/api/bot/${agentId}/conversations`;
+      const params = new URLSearchParams();
       
-      // Generate 3-8 messages for this conversation
-      const numMessages = Math.floor(Math.random() * 6) + 3;
-      const messages: Message[] = [];
+      if (activeFilter !== 'all') {
+        params.append('status', activeFilter);
+      }
       
-      for (let j = 0; j < numMessages; j++) {
-        const isUser = j % 2 === 0;
-        const messageDate = new Date(randomDate.getTime() - (numMessages - j) * 3 * 60 * 1000);
+      if (searchQuery) {
+        params.append('search', searchQuery);
+      }
+      
+      if (params.toString()) {
+        url += `?${params.toString()}`;
+      }
+      
+      console.log('Fetching conversations from URL:', url);
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch conversations. Status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('Received conversations data:', data);
+      
+      // If there are no conversations in the API response, initialize with an empty array
+      const conversationsData = data.conversations || [];
+      setConversations(conversationsData);
+      
+      // If we have conversations and none is selected, select the first one
+      if (conversationsData.length > 0 && !selectedConversation) {
+        fetchConversationDetail(conversationsData[0].id);
+      }
+    } catch (error: any) {
+      console.error('Error fetching conversations:', error);
+      // Don't set the main error state here to avoid disrupting the UI if just the list fails
+    }
+  };
+
+  // Handle search form submission
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSearchQuery(searchInputValue);
+  };
+
+  // Filter and search effect
+  useEffect(() => {
+    if (!isLoading) {
+      fetchConversations();
+    }
+  }, [activeFilter, searchQuery]);
+
+  // Fetch conversation detail
+  const fetchConversationDetail = async (conversationId: string) => {
+    if (!agentId) return;
+    
+    setIsLoadingConversation(true);
+    
+    try {
+      console.log(`Fetching conversation details for ID: ${conversationId}`);
+      const url = `/api/bot/${agentId}/conversations/${conversationId}`;
+      console.log('URL:', url);
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch conversation details. Status: ${response.status}`);
+      }
+      
+      const conversationData = await response.json();
+      console.log('Conversation detail data:', conversationData);
+      
+      // Update the selected conversation with full details
+      setSelectedConversation(conversationData);
+    } catch (error: any) {
+      console.error('Error fetching conversation details:', error);
+      alert(`Error loading conversation: ${error.message}`);
+    } finally {
+      setIsLoadingConversation(false);
+    }
+  };
+
+  // Handle sending a new message
+  const handleSendMessage = async () => {
+    if (!replyText.trim() || !selectedConversation || !agentId) return;
+    
+    setIsSending(true);
+    
+    try {
+      const response = await fetch(`/api/bot/${agentId}/conversations/${selectedConversation.id}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ message: replyText }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to send message. Status: ${response.status}`);
+      }
+      
+      const messageData = await response.json();
+      
+      // Add the new message to the conversation
+      if (selectedConversation.messages) {
+        const updatedConversation = {
+          ...selectedConversation,
+          messages: [...selectedConversation.messages, {
+            id: messageData.id,
+            sender: messageData.sender,
+            text: messageData.text,
+            timestamp: new Date(messageData.timestamp)
+          }],
+          lastMessage: {
+            text: messageData.text,
+            timestamp: new Date(messageData.timestamp)
+          }
+        };
         
-        messages.push({
-          id: `msg-${i}-${j}`,
-          sender: isUser ? 'user' : 'bot',
-          text: isUser 
-            ? randomTexts[Math.floor(Math.random() * randomTexts.length)]
-            : "Thanks for reaching out! I'm here to help. Can you please provide more details about your issue?",
-          timestamp: messageDate,
-          status: isUser ? 'read' : undefined
+        setSelectedConversation(updatedConversation);
+        
+        // Also update this conversation in the list
+        setConversations(conversations.map(conv => 
+          conv.id === selectedConversation.id 
+            ? {
+                ...conv,
+                lastMessage: {
+                  text: messageData.text,
+                  timestamp: new Date(messageData.timestamp)
+                }
+              } 
+            : conv
+        ));
+      }
+      
+      // Clear the reply text
+      setReplyText('');
+    } catch (error: any) {
+      console.error('Error sending message:', error);
+      alert('Failed to send message. Please try again.');
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  // Update conversation status
+  const updateConversationStatus = async (conversationId: string, newStatus: string) => {
+    if (!agentId) return;
+    
+    try {
+      const response = await fetch(`/api/bot/${agentId}/conversations/${conversationId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to update status. Status: ${response.status}`);
+      }
+      
+      // Update local state
+      if (selectedConversation && selectedConversation.id === conversationId) {
+        setSelectedConversation({
+          ...selectedConversation,
+          status: newStatus as any
         });
       }
       
-      return {
-        id: `conv-${i}`,
-        user: {
-          name: userName,
-          id: `user-${i}`,
-          avatar: undefined // We could add mock avatars here
-        },
-        lastMessage: {
-          text: lastMessageText,
-          timestamp: randomDate
-        },
-        status,
-        unread: Math.random() > 0.7,
-        messages
-      };
-    });
-  };
-
-  const handleSendMessage = () => {
-    if (!replyText.trim() || !selectedConversation) return;
-    
-    const newMessage: Message = {
-      id: `msg-new-${Date.now()}`,
-      sender: 'bot',
-      text: replyText,
-      timestamp: new Date(),
-    };
-    
-    // Add new message to the selected conversation
-    const updatedConversation = {
-      ...selectedConversation,
-      messages: [...selectedConversation.messages, newMessage],
-      lastMessage: {
-        text: replyText,
-        timestamp: new Date()
+      setConversations(conversations.map(conv => 
+        conv.id === conversationId 
+          ? { ...conv, status: newStatus as any } 
+          : conv
+      ));
+      
+      // If the active filter is not 'all' and we just changed the status,
+      // we should refresh the conversation list to reflect the change
+      if (activeFilter !== 'all') {
+        fetchConversations();
       }
-    };
-    
-    // Update the conversations list
-    setConversations(conversations.map(conv => 
-      conv.id === selectedConversation.id ? updatedConversation : conv
-    ));
-    
-    // Update the selected conversation
-    setSelectedConversation(updatedConversation);
-    
-    // Clear the reply text
-    setReplyText('');
+    } catch (error: any) {
+      console.error('Error updating conversation status:', error);
+      alert('Failed to update conversation status. Please try again.');
+    }
   };
-
-  // Filter conversations based on search query and active filter
-  const filteredConversations = conversations.filter(conv => {
-    const matchesSearch = searchQuery === '' || 
-      conv.user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      conv.messages.some(msg => msg.text.toLowerCase().includes(searchQuery.toLowerCase()));
-    
-    const matchesFilter = activeFilter === 'all' || conv.status === activeFilter;
-    
-    return matchesSearch && matchesFilter;
-  });
 
   // Get status icon based on conversation status
   const getStatusIcon = (status: string) => {
@@ -245,6 +325,12 @@ const AgentConversationsPage = () => {
       default:
         return null;
     }
+  };
+
+  // Handle selecting a conversation
+  const handleSelectConversation = (conversation: Conversation) => {
+    if (selectedConversation?.id === conversation.id) return;
+    fetchConversationDetail(conversation.id);
   };
 
   return (
@@ -302,16 +388,19 @@ const AgentConversationsPage = () => {
               <div className="w-80 border-r border-gray-200 flex flex-col">
                 {/* Search and Filter Header */}
                 <div className="p-4 border-b border-gray-200">
-                  <div className="relative">
-                    <input
-                      type="text"
-                      placeholder="Search conversations..."
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                  </div>
+                  <form onSubmit={handleSearch}>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Search conversations..."
+                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg"
+                        value={searchInputValue}
+                        onChange={(e) => setSearchInputValue(e.target.value)}
+                      />
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                      <button type="submit" className="sr-only">Search</button>
+                    </div>
+                  </form>
                   
                   <div className="flex mt-3 gap-2">
                     <button
@@ -344,30 +433,71 @@ const AgentConversationsPage = () => {
                     >
                       Resolved
                     </button>
-                    <button
-                      className="bg-gray-100 text-gray-700 hover:bg-gray-200 text-xs px-2 py-1 rounded-full"
-                    >
-                      <Filter className="w-3 h-3" />
-                    </button>
+                    <div className="relative">
+                      <button
+                        className="bg-gray-100 text-gray-700 hover:bg-gray-200 text-xs px-2 py-1 rounded-full flex items-center"
+                        onClick={() => {
+                          const dropdown = document.getElementById('filterDropdown');
+                          if (dropdown) {
+                            dropdown.classList.toggle('hidden');
+                          }
+                        }}
+                      >
+                        <Filter className="w-3 h-3" />
+                      </button>
+                      
+                      {/* Filter dropdown */}
+                      <div 
+                        id="filterDropdown"
+                        className="absolute left-0 mt-2 w-36 bg-white rounded-md shadow-lg z-10 hidden"
+                      >
+                        <div className="py-1">
+                          <button
+                            className="w-full text-left px-4 py-2 text-xs text-gray-700 hover:bg-gray-100"
+                            onClick={() => {
+                              setActiveFilter('pending');
+                              document.getElementById('filterDropdown')?.classList.add('hidden');
+                            }}
+                          >
+                            <span className="flex items-center">
+                              <AlertCircle className="w-3 h-3 text-yellow-500 mr-2" />
+                              Pending
+                            </span>
+                          </button>
+                          <button
+                            className="w-full text-left px-4 py-2 text-xs text-gray-700 hover:bg-gray-100"
+                            onClick={() => {
+                              setActiveFilter('escalated');
+                              document.getElementById('filterDropdown')?.classList.add('hidden');
+                            }}
+                          >
+                            <span className="flex items-center">
+                              <Flag className="w-3 h-3 text-red-500 mr-2" />
+                              Escalated
+                            </span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
                 
                 {/* Conversation List */}
                 <div className="flex-1 overflow-y-auto">
-                  {filteredConversations.length === 0 ? (
+                  {conversations.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full text-center p-4">
                       <MessageSquare className="w-10 h-10 text-gray-300 mb-2" />
                       <p className="text-gray-500">No conversations found</p>
                       <p className="text-xs text-gray-400 mt-1">Try adjusting your filters</p>
                     </div>
                   ) : (
-                    filteredConversations.map((conv) => (
+                    conversations.map((conv) => (
                       <div
                         key={conv.id}
                         className={`p-4 hover:bg-gray-50 cursor-pointer border-b border-gray-100 ${
                           selectedConversation?.id === conv.id ? 'bg-blue-50' : ''
                         }`}
-                        onClick={() => setSelectedConversation(conv)}
+                        onClick={() => handleSelectConversation(conv)}
                       >
                         <div className="flex items-start">
                           <div className="w-10 h-10 rounded-full bg-gray-200 flex-shrink-0 flex items-center justify-center overflow-hidden">
@@ -401,7 +531,12 @@ const AgentConversationsPage = () => {
               
               {/* Conversation Detail */}
               <div className="flex-1 flex flex-col">
-                {selectedConversation ? (
+                {isLoadingConversation ? (
+                  <div className="flex flex-col items-center justify-center h-full text-center">
+                    <div className="w-8 h-8 border-4 border-gray-200 border-t-blue-500 rounded-full animate-spin mx-auto mb-4"></div>
+                    <p className="text-gray-500">Loading conversation...</p>
+                  </div>
+                ) : selectedConversation ? (
                   <>
                     {/* Conversation Header */}
                     <div className="flex justify-between items-center p-4 border-b border-gray-200">
@@ -426,43 +561,116 @@ const AgentConversationsPage = () => {
                         </div>
                       </div>
                       <div className="flex items-center space-x-2">
+                        <div className="relative">
+                          <button 
+                            className="p-2 rounded-full hover:bg-gray-100 flex items-center"
+                            onClick={() => {
+                              // Simple dropdown toggle implementation
+                              const dropdown = document.getElementById('statusDropdown');
+                              if (dropdown) {
+                                dropdown.classList.toggle('hidden');
+                              }
+                            }}
+                          >
+                            <span className="mr-1 text-sm">Change Status</span>
+                            <ChevronDown className="w-4 h-4 text-gray-500" />
+                          </button>
+                          
+                          {/* Status dropdown */}
+                          <div 
+                            id="statusDropdown"
+                            className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10 hidden"
+                          >
+                            <div className="py-1">
+                              <button
+                                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                onClick={() => {
+                                  updateConversationStatus(selectedConversation.id, 'active');
+                                  document.getElementById('statusDropdown')?.classList.add('hidden');
+                                }}
+                              >
+                                <span className="flex items-center">
+                                  <Clock className="w-4 h-4 text-blue-500 mr-2" />
+                                  Active
+                                </span>
+                              </button>
+                              <button
+                                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                onClick={() => {
+                                  updateConversationStatus(selectedConversation.id, 'resolved');
+                                  document.getElementById('statusDropdown')?.classList.add('hidden');
+                                }}
+                              >
+                                <span className="flex items-center">
+                                  <CheckCircle className="w-4 h-4 text-green-500 mr-2" />
+                                  Resolved
+                                </span>
+                              </button>
+                              <button
+                                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                onClick={() => {
+                                  updateConversationStatus(selectedConversation.id, 'pending');
+                                  document.getElementById('statusDropdown')?.classList.add('hidden');
+                                }}
+                              >
+                                <span className="flex items-center">
+                                  <AlertCircle className="w-4 h-4 text-yellow-500 mr-2" />
+                                  Pending
+                                </span>
+                              </button>
+                              <button
+                                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                onClick={() => {
+                                  updateConversationStatus(selectedConversation.id, 'escalated');
+                                  document.getElementById('statusDropdown')?.classList.add('hidden');
+                                }}
+                              >
+                                <span className="flex items-center">
+                                  <Flag className="w-4 h-4 text-red-500 mr-2" />
+                                  Escalated
+                                </span>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
                         <button className="p-2 rounded-full hover:bg-gray-100">
                           <Download className="w-5 h-5 text-gray-500" />
                         </button>
-                        <div className="relative">
-                          <button className="p-2 rounded-full hover:bg-gray-100">
-                            <MoreHorizontal className="w-5 h-5 text-gray-500" />
-                          </button>
-                          {/* Dropdown would go here */}
-                        </div>
                       </div>
                     </div>
                     
                     {/* Messages */}
                     <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                      {selectedConversation.messages.map((message) => (
-                        <div 
-                          key={message.id} 
-                          className={`flex ${message.sender === 'user' ? 'justify-start' : 'justify-end'}`}
-                        >
+                      {selectedConversation.messages?.length ? (
+                        selectedConversation.messages.map((message) => (
                           <div 
-                            className={`max-w-md px-4 py-2 rounded-lg ${
-                              message.sender === 'user' 
-                                ? 'bg-gray-100 text-gray-800' 
-                                : 'bg-blue-500 text-white'
-                            }`}
+                            key={message.id} 
+                            className={`flex ${message.sender === 'user' ? 'justify-start' : 'justify-end'}`}
                           >
-                            <p>{message.text}</p>
                             <div 
-                              className={`text-xs mt-1 ${
-                                message.sender === 'user' ? 'text-gray-500' : 'text-blue-200'
+                              className={`max-w-md px-4 py-2 rounded-lg ${
+                                message.sender === 'user' 
+                                  ? 'bg-gray-100 text-gray-800' 
+                                  : 'bg-blue-500 text-white'
                               }`}
                             >
-                              {formatTimestamp(message.timestamp)}
+                              <p>{message.text}</p>
+                              <div 
+                                className={`text-xs mt-1 ${
+                                  message.sender === 'user' ? 'text-gray-500' : 'text-blue-200'
+                                }`}
+                              >
+                                {formatTimestamp(message.timestamp)}
+                              </div>
                             </div>
                           </div>
+                        ))
+                      ) : (
+                        <div className="flex flex-col items-center justify-center h-full text-center">
+                          <p className="text-gray-500">No messages in this conversation</p>
                         </div>
-                      ))}
+                      )}
                     </div>
                     
                     {/* Reply Box */}
@@ -481,14 +689,15 @@ const AgentConversationsPage = () => {
                                 handleSendMessage();
                               }
                             }}
+                            disabled={isSending}
                           ></textarea>
                         </div>
                         <button
                           className="bg-blue-500 text-white px-4 py-2 rounded-lg h-10 flex items-center justify-center disabled:opacity-50"
                           onClick={handleSendMessage}
-                          disabled={!replyText.trim()}
+                          disabled={!replyText.trim() || isSending}
                         >
-                          Send
+                          {isSending ? 'Sending...' : 'Send'}
                         </button>
                       </div>
                     </div>

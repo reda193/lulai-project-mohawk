@@ -1,72 +1,121 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface SessionVolumeChartProps {
   timeRange: '7d' | '30d' | '90d';
+  botId?: string; // Optional bot ID
 }
 
-// Seeded random number generator
-function seededRandom(seed: number) {
-  const x = Math.sin(seed) * 10000;
-  return x - Math.floor(x);
+interface SessionVolumeData {
+  summary: {
+    totalSessions: number;
+    averageDurationMinutes: number;
+    averageMessagesPerSession: number;
+    totalMessages: number;
+    engagementRate: number;
+  };
+  timeSeriesData: {
+    period: string;
+    sessionCount: number;
+    averageDuration: number;
+    messagesCount: number;
+    averageMessages: number;
+  }[];
 }
 
-const SessionVolumeChart: React.FC<SessionVolumeChartProps> = ({ timeRange }) => {
-  // Generate random data based on time range
-  const data = useMemo(() => {
-    let days;
-    switch (timeRange) {
-      case '7d': days = 7; break;
-      case '30d': days = 30; break;
-      case '90d': days = 90; break;
-      default: days = 30;
-    }
-    
-    // Use consistent seeds based on time range
-    const seedMap = {
-      '7d': 1,
-      '30d': 2,
-      '90d': 3
+const SessionVolumeChart: React.FC<SessionVolumeChartProps> = ({ timeRange, botId }) => {
+  const [data, setData] = useState<any[]>([]);
+  const [totalSessions, setTotalSessions] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchSessionData = async () => {
+      if (!botId) {
+        setIsLoading(false);
+        setError("Please select a bot to view session data");
+        return;
+      }
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        // Calculate start date based on selected time range
+        const endDate = new Date();
+        const startDate = new Date();
+        
+        switch (timeRange) {
+          case '7d':
+            startDate.setDate(endDate.getDate() - 7);
+            break;
+          case '30d':
+            startDate.setDate(endDate.getDate() - 30);
+            break;
+          case '90d':
+            startDate.setDate(endDate.getDate() - 90);
+            break;
+        }
+        
+        // Determine groupBy based on timeRange
+        const groupBy = timeRange === '90d' ? 'week' : 'day';
+        
+        // Construct URL with required botId
+        const url = `/api/bot/${botId}/kpi/session?startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}&groupBy=${groupBy}`;
+        
+        console.log('Fetching session volume data from:', url);
+        
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+          throw new Error(`Error fetching session data: ${response.statusText}`);
+        }
+        
+        const responseData: SessionVolumeData = await response.json();
+        console.log('Session volume data received:', responseData);
+        
+        // Transform data for the chart
+        const chartData = responseData.timeSeriesData.map(item => ({
+          name: item.period,
+          sessions: item.sessionCount
+        }));
+        
+        setData(chartData);
+        setTotalSessions(responseData.summary.totalSessions);
+        setIsLoading(false);
+      } catch (err) {
+        console.error('Error:', err);
+        setError("Failed to load session data");
+        setData([]);
+        setTotalSessions(0);
+        setIsLoading(false);
+      }
     };
-    const baseSeed = seedMap[timeRange] || 1;
-    
-    // Generate based on days, but if too many days, create weekly data points instead
-    const interval = days > 30 ? 7 : 1;
-    const labels = days > 30 ? 'weeks' : 'days';
-    
-    let previousValue = 30 + seededRandom(baseSeed) * 20; // Starting point
-    
-    const result = [];
-    
-    for (let i = 0; i < days; i += interval) {
-      const date = new Date();
-      date.setDate(date.getDate() - (days - i));
-      
-      // Use seeded random for consistent "randomness"
-      const change = (seededRandom(baseSeed + i) - 0.3) * 15; // Slightly biased toward growth
-      previousValue = Math.max(10, previousValue + change);
-      
-      // Add weekly pattern (more usage on weekdays)
-      const dayOfWeek = date.getDay();
-      const weekdayBoost = dayOfWeek >= 1 && dayOfWeek <= 5 ? 20 : 0;
-      
-      result.push({
-        name: labels === 'weeks' 
-          ? `Week ${Math.floor(i / 7) + 1}` 
-          : date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        sessions: Math.round(previousValue + weekdayBoost)
-      });
-    }
-    
-    return result;
-  }, [timeRange]);
 
-  // Calculate total sessions
-  const totalSessions = useMemo(() => {
-    return data.reduce((sum, item) => sum + item.sessions, 0);
-  }, [data]);
+    fetchSessionData();
+  }, [timeRange, botId]);
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="h-72 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
+      </div>
+    );
+  }
+
+  // Show error or no data state
+  if (error || data.length === 0 || totalSessions === 0) {
+    return (
+      <div className="h-72 flex items-center justify-center">
+        <div className="text-center text-gray-500">
+          {error || "No session data available"}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-72">
@@ -82,7 +131,7 @@ const SessionVolumeChart: React.FC<SessionVolumeChartProps> = ({ timeRange }) =>
         >
           <CartesianGrid strokeDasharray="3 3" vertical={false} />
           <XAxis 
-            dataKey="name" 
+            dataKey="name"
             axisLine={false}
             tickLine={false}
             tick={{ fontSize: 12, fill: '#6B7280' }}
@@ -94,8 +143,8 @@ const SessionVolumeChart: React.FC<SessionVolumeChartProps> = ({ timeRange }) =>
           />
           <Tooltip 
             formatter={(value: number) => [value.toLocaleString(), 'Sessions']}
-            contentStyle={{ 
-              backgroundColor: '#fff', 
+            contentStyle={{
+              backgroundColor: '#fff',
               borderRadius: '0.5rem',
               boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
               border: 'none',
@@ -103,10 +152,10 @@ const SessionVolumeChart: React.FC<SessionVolumeChartProps> = ({ timeRange }) =>
             }}
           />
           <Area 
-            type="monotone" 
-            dataKey="sessions" 
-            stroke="#8B5CF6" 
-            fill="#EDE9FE" 
+            type="monotone"
+            dataKey="sessions"
+            stroke="#8B5CF6"
+            fill="#EDE9FE"
             strokeWidth={2}
           />
         </AreaChart>

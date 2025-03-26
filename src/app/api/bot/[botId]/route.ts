@@ -1,3 +1,4 @@
+// app/api/bot/[botId]/route.ts
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -25,8 +26,6 @@ const updateBotSchema = z.object({
 }).refine(data => Object.keys(data).length > 0, {
     message: "At least one field must be provided for update"
 });
-
-
 
 // GET request handler to fetch a specific bot
 export async function GET(
@@ -58,7 +57,47 @@ export async function GET(
             );
         }
         
-        // Fetch the bot with related data
+        // IMPORTANT: First check if user is an admin
+        // Check directly from the user record in the database
+        const isAdmin = user.role === 'ADMIN';
+        
+        console.log(`User ${user.email} has admin status: ${isAdmin}`);
+        
+        // If admin, skip all other security checks and fetch any bot
+        if (isAdmin) {
+            console.log('Admin user detected - fetching bot without creator check');
+            
+            const bot = await db.bot.findUnique({
+                where: { id: botId },
+                include: {
+                    appearance: true,
+                    bot_qa: true,
+                    bot_training: true,
+                    training_coverage: true,
+                    creator: {
+                        select: {
+                            userId: true,
+                            email: true,
+                            first_name: true,
+                            last_name: true,
+                            role: true
+                        }
+                    }
+                }
+            });
+            
+            if (!bot) {
+                return NextResponse.json(
+                    { error: "Bot not found" },
+                    { status: 404 }
+                );
+            }
+            
+            return NextResponse.json({ bot }, { status: 200 });
+        } 
+        
+        // If not admin, continue with normal security check
+        console.log('Regular user - checking creator_id');
         const bot = await db.bot.findFirst({
             where: {
                 id: botId,
@@ -96,9 +135,7 @@ export async function PATCH(
 ) {
     try {
         const session = await getServerSession(authOptions);
-        if (session) {
-            console.log(session);
-        }
+        
         if (!session || !session.user.email) {
             return NextResponse.json(
                 { error: "Unauthorized" },
@@ -106,10 +143,9 @@ export async function PATCH(
             );
         }
 
-         const param = await context.params;
-         const botId = await param.botId;
+        const param = await context.params;
+        const botId = await param.botId;
         
-
         const user = await db.user.findUnique({
             where: { email: session.user.email! }
         });
@@ -121,13 +157,25 @@ export async function PATCH(
             );
         }
 
-        // Check if bot exists and belongs to user
-        const existingBot = await db.bot.findFirst({
-            where: {
-                id: botId,
-                creator_id: user.userId
-            }
-        });
+        // IMPORTANT: First check if user is an admin
+        const isAdmin = user.role === 'ADMIN';
+        
+        let existingBot;
+        
+        // If admin, can update any bot
+        if (isAdmin) {
+            existingBot = await db.bot.findUnique({
+                where: { id: botId }
+            });
+        } else {
+            // Regular user can only update their own bots
+            existingBot = await db.bot.findFirst({
+                where: {
+                    id: botId,
+                    creator_id: user.userId
+                }
+            });
+        }
 
         if (!existingBot) {
             return NextResponse.json(
@@ -157,7 +205,6 @@ export async function PATCH(
             { message: "Bot updated successfully", bot: updatedBot },
             { status: 200 }
         );
-
     } catch (error) {
         console.error("Error updating bot:", error);
         return NextResponse.json(

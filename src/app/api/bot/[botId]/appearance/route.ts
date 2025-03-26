@@ -9,6 +9,28 @@ import path from 'path';
 import { writeFile } from 'fs/promises';
 import { v4 as uuidv4 } from 'uuid';
 
+// Define interfaces for our response types
+interface OwnerInfo {
+  id: string;
+  email: string;
+  name?: string;
+}
+
+interface AppearanceResponse {
+  id: number;
+  bot_id: string;
+  company_logo: string | null;
+  bot_avatar: string | null;
+  accent_color: string | null;
+  widget_icon: string | null;
+  widget_position: string | null;
+  input_placeholder: string | null;
+  branding_enabled: boolean;
+  widget_open_by_default: boolean;
+  starter_questions: boolean | null;
+  owner?: OwnerInfo;
+}
+
 // Appearance update schema matching Prisma model
 const updateAppearanceSchema = z.object({
   company_logo: z.string().optional().nullable(),
@@ -24,6 +46,339 @@ const updateAppearanceSchema = z.object({
   message: "At least one field must be provided for update"
 });
 
+// GET: Fetch bot appearance settings
+export async function GET(
+  req: NextRequest,
+  context: any
+) {
+  console.log("GET request received for bot appearance");
+  
+  // Get the bot ID from the route parameters
+  const params = await context.params;
+  const botId = params.botId;
+  
+  if (!botId) {
+    return NextResponse.json(
+      { error: "Bot ID is required" },
+      { status: 400 }
+    );
+  }
+
+  try {
+    // Authenticate the user
+    const session = await getServerSession(authOptions);
+    
+    if (!session || !session.user.email) {
+      console.log("Unauthorized: No session or email");
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const user = await db.user.findUnique({
+      where: { email: session.user.email }
+    });
+
+    if (!user) {
+      console.log("User not found for email:", session.user.email);
+      return NextResponse.json(
+        { error: "User not found" },
+        { status: 404 }
+      );
+    }
+
+    // Check if user is an admin
+    const isAdmin = user.role === 'ADMIN';
+    console.log(`User ${user.email} has admin status: ${isAdmin}`);
+
+    // If admin, skip bot ownership check
+    let bot;
+    let creator = null;
+    
+    if (isAdmin) {
+      console.log('Admin access - skipping ownership check');
+      // Admin can access any bot
+      bot = await db.bot.findFirst({
+        where: { id: botId },
+        include: {
+          appearance: true
+        }
+      });
+      
+      // Get creator information if needed
+      if (bot) {
+        creator = await db.user.findUnique({
+          where: { userId: bot.creator_id },
+          select: {
+            userId: true,
+            email: true,
+            first_name: true,
+            last_name: true,
+            role: true
+          }
+        });
+      }
+    } else {
+      console.log('Regular user access - checking ownership');
+      // Regular users can only access their own bots
+      bot = await db.bot.findFirst({
+        where: {
+          id: botId,
+          creator_id: user.userId
+        },
+        include: {
+          appearance: true
+        }
+      });
+    }
+
+    if (!bot) {
+      console.log("Bot not found or unauthorized:", botId);
+      return NextResponse.json(
+        { error: "Bot not found or unauthorized" },
+        { status: 404 }
+      );
+    }
+
+    // Get the appearance settings
+    let appearanceData;
+    
+    if (bot.appearance && bot.appearance.length > 0) {
+      // Use existing appearance
+      appearanceData = bot.appearance[0];
+    } else {
+      // Return default values if no appearance settings exist
+      appearanceData = {
+        id: 0,
+        bot_id: botId,
+        company_logo: null,
+        bot_avatar: null,
+        accent_color: null,
+        widget_icon: 'message',
+        widget_position: 'bottom-right',
+        input_placeholder: 'Type a message...',
+        branding_enabled: true,
+        widget_open_by_default: false,
+        starter_questions: true
+      };
+    }
+
+    // Create response object with proper typing
+    const responseObject: AppearanceResponse = {
+      ...appearanceData
+    };
+
+    // For admin, add owner information in the response
+    if (isAdmin && creator) {
+      responseObject.owner = {
+        id: creator.userId,
+        email: creator.email,
+        name: creator.first_name && creator.last_name 
+          ? `${creator.first_name} ${creator.last_name}`
+          : undefined
+      };
+    }
+
+    console.log("Returning appearance settings for bot:", botId);
+    return NextResponse.json(responseObject, { status: 200 });
+  } catch (error) {
+    console.error("Error fetching appearance settings:", error);
+    return NextResponse.json(
+      { 
+        error: "Error fetching appearance settings",
+        details: String(error),
+        errorType: error ? error.constructor.name : 'Unknown'
+      },
+      { status: 500 }
+    );
+  }
+}
+
+// PATCH: Update bot appearance settings (for JSON data without file uploads)
+export async function PATCH(
+  req: NextRequest,
+  context: any
+) {
+  console.log("PATCH request received for bot appearance update");
+  
+  // Get the bot ID from the route parameters
+  const params = await context.params;
+  const botId = params.botId;
+  
+  if (!botId) {
+    return NextResponse.json(
+      { error: "Bot ID is required" },
+      { status: 400 }
+    );
+  }
+
+  try {
+    // Authenticate the user
+    const session = await getServerSession(authOptions);
+    
+    if (!session || !session.user.email) {
+      console.log("Unauthorized: No session or email");
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const user = await db.user.findUnique({
+      where: { email: session.user.email }
+    });
+
+    if (!user) {
+      console.log("User not found for email:", session.user.email);
+      return NextResponse.json(
+        { error: "User not found" },
+        { status: 404 }
+      );
+    }
+
+    // Check if user is an admin
+    const isAdmin = user.role === 'ADMIN';
+    console.log(`User ${user.email} has admin status: ${isAdmin}`);
+
+    // If admin, skip bot ownership check
+    let bot;
+    let creator = null;
+    
+    if (isAdmin) {
+      console.log('Admin access - skipping ownership check');
+      // Admin can access any bot
+      bot = await db.bot.findFirst({
+        where: { id: botId },
+        include: {
+          appearance: true
+        }
+      });
+      
+      // Get creator information if needed
+      if (bot) {
+        creator = await db.user.findUnique({
+          where: { userId: bot.creator_id },
+          select: {
+            userId: true,
+            email: true,
+            first_name: true,
+            last_name: true,
+            role: true
+          }
+        });
+      }
+    } else {
+      console.log('Regular user access - checking ownership');
+      // Regular users can only access their own bots
+      bot = await db.bot.findFirst({
+        where: {
+          id: botId,
+          creator_id: user.userId
+        },
+        include: {
+          appearance: true
+        }
+      });
+    }
+
+    if (!bot) {
+      console.log("Bot not found or unauthorized:", botId);
+      return NextResponse.json(
+        { error: "Bot not found or unauthorized" },
+        { status: 404 }
+      );
+    }
+
+    // Parse the request body
+    const body = await req.json();
+    console.log("Received JSON data:", body);
+    
+    // Validate the data
+    const validatedData = updateAppearanceSchema.safeParse(body);
+
+    if (!validatedData.success) {
+      console.log("Data validation failed:", validatedData.error.issues);
+      return NextResponse.json(
+        { 
+          error: "Invalid data", 
+          details: validatedData.error.issues 
+        },
+        { status: 400 }
+      );
+    }
+
+    // Ensure we have data to update
+    if (Object.keys(validatedData.data).length === 0) {
+      console.log("No valid data to update");
+      return NextResponse.json(
+        { error: "No valid data provided for update" },
+        { status: 400 }
+      );
+    }
+
+    // Update or create appearance record
+    let updatedAppearance;
+    
+    try {
+      if (bot.appearance && bot.appearance.length > 0) {
+        // Update existing appearance
+        updatedAppearance = await db.bot_Appearance.update({
+          where: { bot_id: botId },
+          data: validatedData.data
+        });
+      } else {
+        // Create new appearance record
+        updatedAppearance = await db.bot_Appearance.create({
+          data: {
+            bot_id: botId,
+            ...validatedData.data
+          }
+        });
+      }
+
+      // Create response object with proper typing
+      const responseObject: AppearanceResponse = {
+        ...updatedAppearance
+      };
+
+      // For admin, add owner information in the response
+      if (isAdmin && creator) {
+        responseObject.owner = {
+          id: creator.userId,
+          email: creator.email,
+          name: creator.first_name && creator.last_name 
+            ? `${creator.first_name} ${creator.last_name}`
+            : undefined
+        };
+      }
+
+      console.log("Successfully updated appearance for bot:", botId);
+      return NextResponse.json(responseObject, { status: 200 });
+    } catch (dbError) {
+      console.error("Database error:", dbError);
+      return NextResponse.json(
+        { 
+          error: "Database error while updating appearance", 
+          details: String(dbError)
+        },
+        { status: 500 }
+      );
+    }
+  } catch (error) {
+    console.error("Error updating appearance settings:", error);
+    return NextResponse.json(
+      { 
+        error: "Error updating appearance settings",
+        details: String(error),
+        errorType: error ? error.constructor.name : 'Unknown'
+      },
+      { status: 500 }
+    );
+  }
+}
+
+// POST: Handle file uploads for appearance settings
 export async function POST(
   req: NextRequest,
   context: any 
@@ -58,16 +413,50 @@ export async function POST(
       );
     }
 
-    // Check if bot exists and belongs to user
-    const existingBot = await db.bot.findFirst({
-      where: {
-        id: botId,
-        creator_id: user.userId
-      },
-      include: {
-        appearance: true
+    // Check if user is an admin
+    const isAdmin = user.role === 'ADMIN';
+    console.log(`User ${user.email} has admin status: ${isAdmin}`);
+
+    // If admin, skip bot ownership check
+    let existingBot;
+    let creator = null;
+    
+    if (isAdmin) {
+      console.log('Admin access - skipping ownership check');
+      // Admin can access any bot
+      existingBot = await db.bot.findFirst({
+        where: { id: botId },
+        include: {
+          appearance: true
+        }
+      });
+      
+      // Get creator information if needed
+      if (existingBot) {
+        creator = await db.user.findUnique({
+          where: { userId: existingBot.creator_id },
+          select: {
+            userId: true,
+            email: true,
+            first_name: true,
+            last_name: true,
+            role: true
+          }
+        });
       }
-    });
+    } else {
+      console.log('Regular user access - checking ownership');
+      // Regular users can only access their own bots
+      existingBot = await db.bot.findFirst({
+        where: {
+          id: botId,
+          creator_id: user.userId
+        },
+        include: {
+          appearance: true
+        }
+      });
+    }
 
     if (!existingBot) {
       console.log("Bot not found or unauthorized:", botId);
@@ -185,13 +574,29 @@ export async function POST(
         });
       }
 
-      return NextResponse.json(
-        { 
-          message: "Bot appearance updated successfully", 
-          appearance: updatedAppearance 
-        },
-        { status: 200 }
-      );
+      // Create a properly typed response object
+      const appearanceResponse: AppearanceResponse = {
+        ...updatedAppearance
+      };
+
+      // For admin, add owner information to the response object
+      if (isAdmin && creator) {
+        appearanceResponse.owner = {
+          id: creator.userId,
+          email: creator.email,
+          name: creator.first_name && creator.last_name 
+            ? `${creator.first_name} ${creator.last_name}`
+            : undefined
+        };
+      }
+
+      // Create the final response
+      const responseObject = {
+        message: "Bot appearance updated successfully", 
+        appearance: appearanceResponse
+      };
+
+      return NextResponse.json(responseObject, { status: 200 });
     } catch (dbError) {
       console.error("Database error:", dbError);
       return NextResponse.json(

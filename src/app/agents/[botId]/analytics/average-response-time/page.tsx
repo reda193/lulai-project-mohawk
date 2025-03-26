@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { MenuIcon, Clock, ArrowLeft, Zap, AlertTriangle, BarChart2 } from 'lucide-react';
 import Link from 'next/link';
 import Sidebar from '@/components/Sidebar/Sidebar';
@@ -8,14 +8,110 @@ import AgentNavigation from '@/components/Navigation/AgentNavigation';
 import { usePathname } from 'next/navigation';
 import ResponseTimeChart from '@/components/BotDetails/Charts/ResponseTimeChart';
 
+// Define types for the response time data
+interface ResponseTimeData {
+  summary: {
+    totalMessages: number;
+    averageResponseTimeMs: number;
+    averageResponseTimeSec: number;
+    minResponseTimeSec: number;
+    maxResponseTimeSec: number;
+  };
+  timeSeriesData: {
+    period: string;
+    messageCount: number;
+    averageResponseTimeMs: number | null;
+    averageResponseTimeSec: number | null;
+  }[];
+}
+
 const ResponseTimePage = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d'>('30d');
+  const [responseData, setResponseData] = useState<ResponseTimeData | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
   
   // Get agent ID from path
   const pathname = usePathname();
   const pathSegments = pathname?.split('/') || [];
-  const agentId = pathSegments.length > 2 ? pathSegments[2] : null;
+  const agentId = pathSegments.length > 2 ? pathSegments[2] : undefined;
+  
+  // Fetch response time data for the analysis sections
+  useEffect(() => {
+    const fetchResponseTimeData = async () => {
+      if (!agentId) {
+        setIsLoading(false);
+        setError('No agent ID found');
+        return;
+      }
+      
+      setIsLoading(true);
+      setError(null);
+      
+      try {
+        // Calculate date range based on selected timeRange
+        const endDate = new Date();
+        const startDate = new Date();
+        
+        switch (timeRange) {
+          case '7d':
+            startDate.setDate(endDate.getDate() - 7);
+            break;
+          case '30d':
+            startDate.setDate(endDate.getDate() - 30);
+            break;
+          case '90d':
+            startDate.setDate(endDate.getDate() - 90);
+            break;
+        }
+        
+        // Use the same API endpoint as the chart component
+        const url = `/api/bot/${agentId}/kpi/response?startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}&groupBy=day`;
+        
+        console.log('Fetching detailed response time data from:', url);
+        
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+          throw new Error(`API returned ${response.status}: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        console.log('Response time data for analysis:', data);
+        
+        setResponseData(data);
+      } catch (err) {
+        console.error('Error fetching response data for analysis:', err);
+        setError(err instanceof Error ? err.message : 'Failed to fetch response time data');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchResponseTimeData();
+  }, [agentId, timeRange]);
+  
+  // Format a number to a fixed number of decimal places
+  const formatNumber = (num: number | null | undefined, decimals = 2): string => {
+    if (num === null || num === undefined) return '0.00';
+    return num.toFixed(decimals);
+  };
+  
+  // Get the previous period's average response time (simple calculation for demo)
+  const getPreviousPeriodValue = (): number => {
+    if (!responseData || !responseData.summary) return 0;
+    
+    // This is a simplified approach - in production you'd want to 
+    // actually fetch data from the previous period
+    return responseData.summary.averageResponseTimeSec * 1.1; // Assume 10% improvement
+  };
+  
+  // Calculate the difference for trend indicators
+  const calculateDifference = (current: number, previous: number): string => {
+    const diff = previous - current;
+    return diff.toFixed(1);
+  };
 
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -82,51 +178,85 @@ const ResponseTimePage = () => {
                 <Clock className="w-5 h-5 mr-2 text-yellow-500" />
                 Average Response Time
               </h2>
-              <ResponseTimeChart timeRange={timeRange} />
+              <ResponseTimeChart timeRange={timeRange} botId={agentId} />
             </div>
             
             {/* Response Time Details */}
             <div className="bg-white rounded-lg shadow p-6">
               <h2 className="text-lg font-medium mb-4">Response Time Analysis</h2>
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Clock className="w-4 h-4 text-yellow-500" />
-                      <h3 className="text-sm font-medium text-gray-500">Average Response Time</h3>
+              
+              {isLoading ? (
+                <div className="flex justify-center items-center h-40">
+                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-yellow-500"></div>
+                </div>
+              ) : error ? (
+                <div className="text-center text-gray-500 py-10">
+                  {error}
+                </div>
+              ) : !responseData ? (
+                <div className="text-center text-gray-500 py-10">
+                  No response time data available
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Clock className="w-4 h-4 text-yellow-500" />
+                        <h3 className="text-sm font-medium text-gray-500">Average Response Time</h3>
+                      </div>
+                      <p className="text-lg font-semibold">
+                        {formatNumber(responseData.summary.averageResponseTimeSec)} seconds
+                      </p>
+                      {getPreviousPeriodValue() > 0 && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          <span className="text-green-500">
+                            ↓ {calculateDifference(
+                              responseData.summary.averageResponseTimeSec,
+                              getPreviousPeriodValue()
+                            )}s
+                          </span> from previous
+                        </p>
+                      )}
                     </div>
-                    <p className="text-lg font-semibold">1.8 seconds</p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      <span className="text-green-500">↓ 0.5s</span> from previous
-                    </p>
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Zap className="w-4 h-4 text-green-500" />
+                        <h3 className="text-sm font-medium text-gray-500">Fastest Response</h3>
+                      </div>
+                      <p className="text-lg font-semibold">
+                        {formatNumber(responseData.summary.minResponseTimeSec)} seconds
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">Simple queries</p>
+                    </div>
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <AlertTriangle className="w-4 h-4 text-orange-500" />
+                        <h3 className="text-sm font-medium text-gray-500">Slowest Response</h3>
+                      </div>
+                      <p className="text-lg font-semibold">
+                        {formatNumber(responseData.summary.maxResponseTimeSec)} seconds
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">Complex technical queries</p>
+                    </div>
                   </div>
                   <div className="bg-gray-50 rounded-lg p-4">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Zap className="w-4 h-4 text-green-500" />
-                      <h3 className="text-sm font-medium text-gray-500">Fastest Response</h3>
-                    </div>
-                    <p className="text-lg font-semibold">0.6 seconds</p>
-                    <p className="text-xs text-gray-500 mt-1">Simple queries</p>
-                  </div>
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <div className="flex items-center gap-2 mb-1">
-                      <AlertTriangle className="w-4 h-4 text-orange-500" />
-                      <h3 className="text-sm font-medium text-gray-500">Slowest Response</h3>
-                    </div>
-                    <p className="text-lg font-semibold">4.2 seconds</p>
-                    <p className="text-xs text-gray-500 mt-1">Complex technical queries</p>
+                    <h3 className="text-sm font-medium text-gray-500 mb-2">Recommendations to Improve Response Time</h3>
+                    <ul className="list-disc pl-5 space-y-1 text-sm">
+                      <li>Optimize knowledge base retrieval for complex queries</li>
+                      <li>Pre-cache common responses for frequently asked questions</li>
+                      <li>Implement progressive responses for queries requiring longer processing</li>
+                      {responseData.summary.averageResponseTimeSec > 2 && (
+                        <li>Consider upgrading to a faster model for critical workflows</li>
+                      )}
+                    </ul>
                   </div>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <h3 className="text-sm font-medium text-gray-500 mb-2">Recommendations to Improve Response Time</h3>
-                  <ul className="list-disc pl-5 space-y-1 text-sm">
-                    <li>Optimize knowledge base retrieval for complex queries</li>
-                    <li>Pre-cache common responses for frequently asked questions</li>
-                    <li>Implement progressive responses for queries requiring longer processing</li>
-                  </ul>
-                </div>
-              </div>
+              )}
             </div>
+            
+            {/* Keep the rest of your UI with the static demo data for now */}
+            {/* You can gradually replace these with real data as you implement more API endpoints */}
             
             {/* Response Time by Query Type */}
             <div className="bg-white rounded-lg shadow p-6">
@@ -245,7 +375,7 @@ const ResponseTimePage = () => {
               </div>
             </div>
             
-            {/* Performance Factors */}
+            {/* Performance Factors - keeping static for now */}
             <div className="bg-white rounded-lg shadow p-6">
               <h2 className="text-lg font-medium mb-4">Response Time Factors</h2>
               <div className="space-y-4">

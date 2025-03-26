@@ -33,14 +33,13 @@ export default async function DashboardPage() {
   
   // Check authentication
   if (!session) {
-    redirect('/auth/signin');
+    redirect('/');
   }
   
   // Explicitly type the chatbotAgents array
   let chatbotAgents: ChatbotAgent[] = [];
   
-  // Fetch user data including role
-  let userRole = 'MEMBER'; // Default role if not found
+
   
   try {
     // Fetch bots directly from the database
@@ -50,9 +49,7 @@ export default async function DashboardPage() {
       });
       
       if (user) {
-        // Get the user's role
-        userRole = user.role;
-        
+
         const bots = await db.bot.findMany({
           where: {
             creator_id: user.userId
@@ -102,7 +99,7 @@ export default async function DashboardPage() {
   const userData = {
     firstName: session.user?.first_name || '',
     lastName: session.user?.last_name || '',
-    role: userRole // Pass the user role to the sidebar
+    role: session.user?.role 
   };
 
   return (

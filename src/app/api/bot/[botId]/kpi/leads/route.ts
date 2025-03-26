@@ -4,16 +4,28 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { z } from "zod";
 
-const leadFilterSchema = z.object({
-  botId: z.string().optional(),
-  startDate: z.string().optional(),
-  endDate: z.string().optional(),
-  timeFrame: z.enum(['daily', 'weekly', 'monthly']).default('daily')
+const leadQuerySchema = z.object({
+  startDate: z.string(),
+  endDate: z.string(),
+  groupBy: z.enum(['day', 'week', 'month']).optional().default('day')
 });
 
-// GET: Get lead generation metrics
-export async function GET(req: Request) {
+// GET: Fetch lead generation data for a specific bot
+export async function GET(
+  req: Request,
+  context: any
+) {
   try {
+    const params = await context.params;
+    const botId = params.botId
+    if (!botId) {
+      return NextResponse.json(
+        { error: "Bot ID is required" },
+        { status: 400 }
+      );
+    }
+
+    // Authenticate the user
     const session = await getServerSession(authOptions);
     
     if (!session || !session.user.email) {
@@ -34,13 +46,16 @@ export async function GET(req: Request) {
       );
     }
 
+    // Check if user is an admin
+    const isAdmin = user.role === 'ADMIN';
+    console.log(`User ${user.email} has admin status: ${isAdmin}`);
+
     // Parse and validate query parameters
     const url = new URL(req.url);
-    const validated = leadFilterSchema.safeParse({
-      botId: url.searchParams.get('botId'),
-      startDate: url.searchParams.get('startDate'),
-      endDate: url.searchParams.get('endDate'),
-      timeFrame: url.searchParams.get('timeFrame') || 'daily'
+    const validated = leadQuerySchema.safeParse({
+      startDate: url.searchParams.get('startDate') || '',
+      endDate: url.searchParams.get('endDate') || '',
+      groupBy: url.searchParams.get('groupBy') || 'day'
     });
 
     if (!validated.success) {
@@ -50,41 +65,73 @@ export async function GET(req: Request) {
       );
     }
 
-    const { botId, startDate, endDate, timeFrame } = validated.data;
-
-    // Default to last 30 days if no dates provided
-    const defaultStartDate = new Date();
-    defaultStartDate.setDate(defaultStartDate.getDate() - 30);
+    const { startDate, endDate, groupBy } = validated.data;
     
-    const startDateTime = startDate ? new Date(startDate) : defaultStartDate;
-    const endDateTime = endDate ? new Date(endDate) : new Date();
+    // Parse dates
+    const startDateTime = new Date(startDate);
+    const endDateTime = new Date(endDate);
 
-    // Get user's bots or specific bot
-    const botsCondition = botId 
-      ? { id: botId, creator_id: user.userId }
-      : { creator_id: user.userId };
-
-    const bots = await db.bot.findMany({
-      where: botsCondition,
-      select: {
-        id: true,
-        bot_name: true
+    // If admin, skip bot ownership check
+    let bot;
+    
+    if (isAdmin) {
+      console.log('Admin access - skipping ownership check');
+      // Admin can access any bot
+      bot = await db.bot.findFirst({
+        where: { id: botId },
+        select: {
+          id: true,
+          bot_name: true,
+          model_type: true,
+          creator_id: true
+        }
+      });
+      
+      // Get creator information if needed
+      if (bot) {
+        const creator = await db.user.findUnique({
+          where: { userId: bot.creator_id },
+          select: {
+            userId: true,
+            email: true,
+            first_name: true,
+            last_name: true,
+            role: true
+          }
+        });
+        
+        if (creator) {
+          // Add creator info to bot
+          (bot as any).creator = creator;
+        }
       }
-    });
-
-    if (bots.length === 0) {
-      return NextResponse.json({
-        message: botId ? "Bot not found or unauthorized" : "No bots found for this user",
-        leads: []
-      }, { status: botId ? 404 : 200 });
+    } else {
+      console.log('Regular user access - checking ownership');
+      // Regular users can only access their own bots
+      bot = await db.bot.findFirst({
+        where: {
+          id: botId,
+          creator_id: user.userId
+        },
+        select: {
+          id: true,
+          bot_name: true,
+          model_type: true
+        }
+      });
     }
 
-    const botIds = bots.map(bot => bot.id);
+    if (!bot) {
+      return NextResponse.json(
+        { error: "Bot not found or unauthorized" },
+        { status: 404 }
+      );
+    }
 
-    // Get conversations in the date range
+    // Get conversations for this bot in the date range
     const conversations = await db.conversation.findMany({
       where: {
-        bot_id: { in: botIds },
+        bot_id: botId,
         start_time: {
           gte: startDateTime,
           lte: endDateTime
@@ -92,284 +139,231 @@ export async function GET(req: Request) {
       },
       include: {
         messages: {
+          where: {
+            // Filter messages that contain the word "lead" or have been tagged as leads
+            // This is a simplified approach - in a real implementation you'd want to use
+            // a more robust method to identify leads based on your specific criteria
+            OR: [
+              {
+                message_text: {
+                  contains: "lead",
+                  mode: "insensitive"
+                }
+              },
+              {
+                // You might need to add a specific field or tag in your schema
+                // to properly identify leads if you don't have one already
+                message_text: {
+                  contains: "interested",
+                  mode: "insensitive"
+                }
+              }
+            ]
+          },
           select: {
             id: true,
-            message_text: true,
             sent_at: true,
-            sender_type: true
-          }
-        },
-        bot: {
-          select: {
-            id: true,
-            bot_name: true
+            message_text: true
           }
         }
       }
     });
 
-    // Define keywords to identify leads
-    const leadKeywords = ['lead', 'interest', 'purchase', 'buy', 'subscribe', 'contact', 'demo', 'trial', 'sales'];
+    // Count conversations with lead messages
+    const conversationsWithLeads = conversations.filter(conv => conv.messages.length > 0);
+    const totalLeadConversations = conversationsWithLeads.length;
     
-    // Find lead messages
-    const leadMessages = conversations.flatMap(conv => 
-      conv.messages
-        .filter(msg => {
-          const lowerText = msg.message_text.toLowerCase();
-          return leadKeywords.some(keyword => lowerText.includes(keyword));
-        })
-        .map(msg => ({
-          messageId: msg.id,
-          text: msg.message_text,
-          sentAt: msg.sent_at,
-          senderType: msg.sender_type,
-          conversationId: conv.id,
-          botId: conv.bot_id,
-          botName: conv.bot.bot_name
-        }))
-    );
+    // Count total lead messages
+    const totalLeadMessages = conversationsWithLeads.reduce((sum, conv) => sum + conv.messages.length, 0);
+    
+    // Group lead data by time period
+    const timeSeriesData = groupLeadsByTime(conversationsWithLeads, groupBy, startDateTime, endDateTime);
+    
+    // Calculate conversion rate (percentage of conversations that generated leads)
+    const totalConversations = conversations.length;
+    const conversionRate = totalConversations > 0 ? (totalLeadConversations / totalConversations) * 100 : 0;
 
-    // Group lead messages by conversation
-    const leadsByConversation = leadMessages.reduce((acc, msg) => {
-      if (!acc[msg.conversationId]) {
-        acc[msg.conversationId] = {
-          conversationId: msg.conversationId,
-          botId: msg.botId,
-          botName: msg.botName,
-          messages: [],
-          firstLead: msg.sentAt,
-          isQualified: false
-        };
-      }
-      
-      acc[msg.conversationId].messages.push({
-        messageId: msg.messageId,
-        text: msg.text,
-        sentAt: msg.sentAt,
-        senderType: msg.senderType
-      });
-      
-      // Update first lead time if this message is earlier
-      if (new Date(msg.sentAt) < new Date(acc[msg.conversationId].firstLead)) {
-        acc[msg.conversationId].firstLead = msg.sentAt;
-      }
-      
-      // Check if this is a qualified lead (contains email or phone number)
-      if (!acc[msg.conversationId].isQualified) {
-        const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
-        const phoneRegex = /(\+\d{1,3}[\s-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/;
-        
-        acc[msg.conversationId].isQualified = 
-          emailRegex.test(msg.text) || phoneRegex.test(msg.text);
-      }
-      
-      return acc;
-    }, {} as Record<string, any>);
+    // Get example lead messages for analysis
+    const exampleLeads = conversationsWithLeads
+      .flatMap(conv => conv.messages.map(msg => ({ 
+        conversationId: conv.id,
+        leadText: msg.message_text,
+        timestamp: msg.sent_at
+      })))
+      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime()) // Most recent first
+      .slice(0, 10); // Limit to 10 examples
 
-    // Convert to array
-    const leadConversations = Object.values(leadsByConversation);
-
-    // Group by bot
-    const leadsByBot = botIds.reduce((acc, botId) => {
-      const botLeads = leadConversations.filter(lead => lead.botId === botId);
-      const qualifiedLeads = botLeads.filter(lead => lead.isQualified);
-      
-      acc[botId] = {
-        botId,
-        botName: bots.find(b => b.id === botId)?.bot_name || 'Unknown',
-        totalLeads: botLeads.length,
-        qualifiedLeads: qualifiedLeads.length,
-        conversionRate: botLeads.length > 0 
-          ? (qualifiedLeads.length / botLeads.length) * 100 
-          : 0
+    // Create bot info object with creator details for admin
+    const botInfo = {
+      id: bot.id,
+      name: bot.bot_name
+    };
+    
+    // For admin view, add owner information if available
+    if (isAdmin && (bot as any).creator) {
+      const creator = (bot as any).creator;
+      (botInfo as any).owner = {
+        id: creator.userId,
+        email: creator.email,
+        name: creator.first_name && creator.last_name 
+          ? `${creator.first_name} ${creator.last_name}`
+          : undefined
       };
-      
-      return acc;
-    }, {} as Record<string, any>);
-
-    // Group by time period for trends
-    interface LeadTimeEntry {
-      botId: string;
-      botName: string;
-      totalLeads: number;
-      qualifiedLeads: number;
-    }
-
-    const timeSeriesData: Record<string, Record<string, LeadTimeEntry>> = {};
-
-    leadConversations.forEach(lead => {
-      const date = new Date(lead.firstLead);
-      
-      // Generate time key based on timeFrame
-      let timeKey: string;
-      if (timeFrame === 'daily') {
-        timeKey = date.toISOString().split('T')[0]; // YYYY-MM-DD
-      } else if (timeFrame === 'weekly') {
-        // Get the week number
-        const startOfYear = new Date(date.getFullYear(), 0, 1);
-        const days = Math.floor((date.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000));
-        const weekNumber = Math.ceil((days + startOfYear.getDay() + 1) / 7);
-        timeKey = `${date.getFullYear()}-W${weekNumber}`;
-      } else {
-        // Monthly
-        timeKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      }
-      
-      // Initialize time series entry if needed
-      if (!timeSeriesData[timeKey]) {
-        timeSeriesData[timeKey] = {};
-      }
-      
-      if (!timeSeriesData[timeKey][lead.botId]) {
-        timeSeriesData[timeKey][lead.botId] = {
-          botId: lead.botId,
-          botName: lead.botName,
-          totalLeads: 0,
-          qualifiedLeads: 0
-        };
-      }
-      
-      // Update time series data
-      timeSeriesData[timeKey][lead.botId].totalLeads++;
-      if (lead.isQualified) {
-        timeSeriesData[timeKey][lead.botId].qualifiedLeads++;
-      }
-    });
-
-    // Convert time series data to sorted array
-    const trends = Object.entries(timeSeriesData)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([timeKey, botData]) => {
-        return {
-          period: timeKey,
-          bots: Object.values(botData)
-        };
-      });
-
-    // Calculate overall metrics
-    const totalLeads = leadConversations.length;
-    const qualifiedLeads = leadConversations.filter(lead => lead.isQualified).length;
-    const overallConversionRate = totalLeads > 0 
-      ? (qualifiedLeads / totalLeads) * 100 
-      : 0;
-
-    // Calculate trend direction
-    let trendDirection = "stable";
-    if (trends.length >= 2) {
-      const firstPeriod = trends[0];
-      const lastPeriod = trends[trends.length - 1];
-      
-      const firstTotal = firstPeriod.bots.reduce((sum, bot) => sum + bot.totalLeads, 0);
-      const lastTotal = lastPeriod.bots.reduce((sum, bot) => sum + bot.totalLeads, 0);
-      
-      if (lastTotal > firstTotal * 1.2) { // 20% increase
-        trendDirection = "increasing";
-      } else if (lastTotal < firstTotal * 0.8) { // 20% decrease
-        trendDirection = "decreasing";
-      }
     }
 
     return NextResponse.json({
-      timeframe: {
-        start: startDateTime,
-        end: endDateTime,
-        groupBy: timeFrame
-      },
       summary: {
-        totalLeads,
-        qualifiedLeads,
-        conversionRate: overallConversionRate.toFixed(2),
-        trendDirection
+        totalLeadConversations,
+        totalLeadMessages,
+        conversionRate,
+        totalConversations
       },
-      byBot: Object.values(leadsByBot),
-      trends,
-      recent: leadConversations
-        .sort((a, b) => new Date(b.firstLead).getTime() - new Date(a.firstLead).getTime())
-        .slice(0, 10)
+      timeSeriesData,
+      exampleLeads,
+      bot: botInfo
     }, { status: 200 });
   } catch (error) {
-    console.error("Error fetching lead generation metrics:", error);
+    console.error("Error fetching lead generation data:", error);
     return NextResponse.json(
-      { error: "Error fetching lead generation metrics" },
+      { error: "Error fetching lead generation data" },
       { status: 500 }
     );
   }
 }
 
-// POST: Mark a conversation as a qualified lead
-export async function POST(req: Request) {
-  try {
-    const session = await getServerSession(authOptions);
+// Helper function to group lead data by time period
+function groupLeadsByTime(
+  conversationsWithLeads: Array<{ 
+    id: string; 
+    start_time: Date;
+    messages: Array<{
+      id: string;
+      sent_at: Date;
+      message_text: string;
+    }>;
+  }>,
+  groupBy: 'day' | 'week' | 'month',
+  startDate: Date,
+  endDate: Date
+) {
+  // Create empty buckets for the time series
+  const timeBuckets = generateTimeBuckets(startDate, endDate, groupBy);
+  
+  // Group lead messages into buckets
+  const groupedData: Record<string, { 
+    conversationCount: number;
+    messageCount: number;
+  }> = {};
+  
+  // Initialize all buckets with zero values
+  timeBuckets.forEach(bucket => {
+    groupedData[bucket.key] = {
+      conversationCount: 0,
+      messageCount: 0
+    };
+  });
+  
+  // Fill buckets with lead data
+  conversationsWithLeads.forEach(conv => {
+    // Get the time bucket key for this conversation
+    const date = conv.start_time;
+    let conversationBucketKey: string;
     
-    if (!session || !session.user.email) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+    switch (groupBy) {
+      case 'day':
+        conversationBucketKey = date.toISOString().split('T')[0]; // YYYY-MM-DD
+        break;
+      case 'week':
+        // Get the Monday of the week
+        const dayOfWeek = date.getDay();
+        const diff = date.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+        const monday = new Date(date);
+        monday.setDate(diff);
+        conversationBucketKey = monday.toISOString().split('T')[0];
+        break;
+      case 'month':
+        conversationBucketKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        break;
+      default:
+        conversationBucketKey = date.toISOString().split('T')[0];
     }
-
-    const user = await db.user.findUnique({
-      where: { email: session.user.email }
-    });
-
-    if (!user) {
-      return NextResponse.json(
-        { error: "User not found" },
-        { status: 404 }
-      );
+    
+    // Increment conversation count for this bucket
+    if (groupedData[conversationBucketKey]) {
+      groupedData[conversationBucketKey].conversationCount += 1;
+      groupedData[conversationBucketKey].messageCount += conv.messages.length;
     }
+  });
+  
+  // Format data for response
+  return timeBuckets.map(bucket => {
+    const data = groupedData[bucket.key];
+    
+    return {
+      period: bucket.label,
+      leadConversations: data.conversationCount,
+      leadMessages: data.messageCount
+    };
+  });
+}
 
-    // Parse request body
-    const body = await req.json();
-    const { conversationId, isQualified = true, notes } = body;
-
-    if (!conversationId) {
-      return NextResponse.json(
-        { error: "Conversation ID is required" },
-        { status: 400 }
-      );
+// Helper function to generate time buckets
+function generateTimeBuckets(
+  startDate: Date, 
+  endDate: Date, 
+  groupBy: 'day' | 'week' | 'month'
+) {
+  const buckets = [];
+  const currentDate = new Date(startDate);
+  
+  while (currentDate <= endDate) {
+    let key: string;
+    let label: string;
+    
+    switch (groupBy) {
+      case 'day':
+        key = currentDate.toISOString().split('T')[0];
+        label = new Date(key).toLocaleDateString('en-US', { 
+          month: 'short', 
+          day: 'numeric' 
+        });
+        currentDate.setDate(currentDate.getDate() + 1);
+        break;
+      case 'week':
+        // Get the Monday of the week
+        const dayOfWeek = currentDate.getDay();
+        const diff = currentDate.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+        const monday = new Date(currentDate);
+        monday.setDate(diff);
+        
+        key = monday.toISOString().split('T')[0];
+        
+        // Calculate Sunday
+        const sunday = new Date(monday);
+        sunday.setDate(monday.getDate() + 6);
+        
+        label = `${monday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${sunday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+        
+        // Move to next week
+        currentDate.setDate(currentDate.getDate() + 7);
+        break;
+      case 'month':
+        key = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+        label = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
+          .toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+        
+        // Move to the first day of the next month
+        currentDate.setMonth(currentDate.getMonth() + 1);
+        currentDate.setDate(1);
+        break;
+      default:
+        key = currentDate.toISOString().split('T')[0];
+        label = key;
+        currentDate.setDate(currentDate.getDate() + 1);
     }
-
-    // Check if conversation exists and belongs to user's bot
-    const conversation = await db.conversation.findFirst({
-      where: {
-        id: conversationId,
-        bot: {
-          creator_id: user.userId
-        }
-      }
-    });
-
-    if (!conversation) {
-      return NextResponse.json(
-        { error: "Conversation not found or unauthorized" },
-        { status: 404 }
-      );
-    }
-
-    // Update conversation to mark as lead
-    const updatedConversation = await db.conversation.update({
-      where: { id: conversationId },
-      data: {
-        // Add a custom field or tag to mark this as a lead
-        // This would require extending your schema
-        resolution_status: isQualified ? "QUALIFIED_LEAD" : "LEAD",
-        // You might want to add a field for lead notes
-      }
-    });
-
-    return NextResponse.json({
-      message: `Conversation marked as ${isQualified ? 'qualified' : ''} lead successfully`,
-      conversation: {
-        id: updatedConversation.id,
-        status: updatedConversation.resolution_status
-      }
-    }, { status: 200 });
-  } catch (error) {
-    console.error("Error marking lead:", error);
-    return NextResponse.json(
-      { error: "Error marking lead" },
-      { status: 500 }
-    );
+    
+    buckets.push({ key, label });
   }
+  
+  return buckets;
 }

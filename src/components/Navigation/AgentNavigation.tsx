@@ -31,15 +31,21 @@ const AgentNavItem = ({ href, icon, label, active }: AgentNavItemProps) => (
 interface AgentNavigationProps {
   agentId: string;
   className?: string;
+  adminMode?: boolean;
 }
 
-const AgentNavigation = ({ agentId, className }: AgentNavigationProps) => {
+const AgentNavigation = ({ agentId, className, adminMode = false }: AgentNavigationProps) => {
   const pathname = usePathname();
   console.log("Current pathname:", pathname);
   
   // State for showing sub-navs
   const [forceShowSettings, setForceShowSettings] = useState(false);
   const [forceShowAnalytics, setForceShowAnalytics] = useState(false);
+  
+  // Determine the base path based on admin mode
+  const basePath = adminMode 
+    ? `/admin/client-view/${agentId}`
+    : `/agents/${agentId}`;
   
   useEffect(() => {
     // Check if we're on any settings-related page
@@ -93,27 +99,27 @@ const AgentNavigation = ({ agentId, className }: AgentNavigationProps) => {
   
   const navItems = [
     {
-      href: `/agents/${safeAgentId}/overview`,
+      href: `${basePath}/overview`,
       icon: <BarChart2 className="w-5 h-5" />,
       label: 'Overview'
     },
     {
-      href: `/agents/${safeAgentId}/analytics`,
+      href: `${basePath}/analytics`,
       icon: <BarChart2 className="w-5 h-5" />,
       label: 'Analytics'
     },
     {
-      href: `/agents/${safeAgentId}/conversations`,
+      href: `${basePath}/conversations`,
       icon: <MessageSquare className="w-5 h-5" />,
       label: 'Conversations'
     },
     {
-      href: `/agents/${safeAgentId}/integrations`,
+      href: `${basePath}/integrations`,
       icon: <LinkIcon className="w-5 h-5" />,
       label: 'Integrations'
     },
     {
-      href: `/agents/${safeAgentId}/settings`,
+      href: `${basePath}/settings`,
       icon: <Settings className="w-5 h-5" />,
       label: 'Settings'
     },
@@ -122,15 +128,15 @@ const AgentNavigation = ({ agentId, className }: AgentNavigationProps) => {
   // Define settings subnav items
   const settingsSubNavItems = [
     {
-      href: `/agents/${safeAgentId}/settings`,
+      href: `${basePath}/settings`,
       label: 'General'
     },
     {
-      href: `/agents/${safeAgentId}/settings/appearance`,
+      href: `${basePath}/settings/appearance`,
       label: 'Appearance'
     },
     {
-      href: `/agents/${safeAgentId}/settings/training-settings`,
+      href: `${basePath}/settings/training-settings`,
       label: 'Training Data'
     },
   ];
@@ -138,47 +144,47 @@ const AgentNavigation = ({ agentId, className }: AgentNavigationProps) => {
   // Define analytics subnav items
   const analyticsSubNavItems = [
     {
-      href: `/agents/${safeAgentId}/analytics`,
+      href: `${basePath}/analytics`,
       label: 'Overview'
     },
     {
-      href: `/agents/${safeAgentId}/analytics/resolution-rate`,
+      href: `${basePath}/analytics/resolution-rate`,
       label: 'Resolution Rate'
     },
     {
-      href: `/agents/${safeAgentId}/analytics/csat`,
+      href: `${basePath}/analytics/csat`,
       label: 'CSAT'
     },
     {
-      href: `/agents/${safeAgentId}/analytics/session-volume`,
+      href: `${basePath}/analytics/session-volume`,
       label: 'Session Volume'
     },
     {
-      href: `/agents/${safeAgentId}/analytics/escalation-rate`,
+      href: `${basePath}/analytics/escalation-rate`,
       label: 'Escalation Rate'
     },
     {
-      href: `/agents/${safeAgentId}/analytics/knowledge-base-utilization`,
+      href: `${basePath}/analytics/knowledge-base-utilization`,
       label: 'Knowledge Base Utilization'
     },
     {
-      href: `/agents/${safeAgentId}/analytics/average-response-time`,
+      href: `${basePath}/analytics/average-response-time`,
       label: 'Average Response Time'
     },
     {
-      href: `/agents/${safeAgentId}/analytics/unrecognized-queries`,
+      href: `${basePath}/analytics/unrecognized-queries`,
       label: 'Unrecognized Queries'
     },
     {
-      href: `/agents/${safeAgentId}/analytics/lead-generation`,
+      href: `${basePath}/analytics/lead-generation`,
       label: 'Lead Generation'
     },
     {
-      href: `/agents/${safeAgentId}/analytics/training-coverage`,
+      href: `${basePath}/analytics/training-coverage`,
       label: 'Training Coverage'
     },
     {
-      href: `/agents/${safeAgentId}/analytics/sentiment-trends`,
+      href: `${basePath}/analytics/sentiment-trends`,
       label: 'Sentiment Trends'
     },
   ];

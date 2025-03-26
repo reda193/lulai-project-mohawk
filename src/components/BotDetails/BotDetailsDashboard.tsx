@@ -149,7 +149,7 @@ export function BotDetailsDashboard({ bot }: BotDetailsProps) {
             <Clock className="w-5 h-5 mr-2 text-yellow-500" />
             Average Response Time
           </h2>
-          <ResponseTimeChart timeRange={timeRange} />
+          <ResponseTimeChart timeRange={timeRange} botId={bot.id}/>
         </div>
         
         <div className="bg-white rounded-lg shadow p-6">
@@ -157,7 +157,7 @@ export function BotDetailsDashboard({ bot }: BotDetailsProps) {
             <BarChart2 className="w-5 h-5 mr-2 text-purple-500" />
             Session Volume
           </h2>
-          <SessionVolumeChart timeRange={timeRange} />
+          <SessionVolumeChart timeRange={timeRange} botId={bot.id}/>
         </div>
       </div>
 
@@ -168,7 +168,7 @@ export function BotDetailsDashboard({ bot }: BotDetailsProps) {
             <TrendingUp className="w-5 h-5 mr-2 text-green-500" />
             Sentiment Trends
           </h2>
-          <SentimentTrendsChart timeRange={timeRange} />
+          <SentimentTrendsChart timeRange={timeRange} botId={bot.id}/>
         </div>
         
         <div className="bg-white rounded-lg shadow p-6">
@@ -176,7 +176,7 @@ export function BotDetailsDashboard({ bot }: BotDetailsProps) {
             <Brain className="w-5 h-5 mr-2 text-purple-500" />
             Training Coverage
           </h2>
-          <TrainingCoverageChart timeRange={timeRange} />
+          <TrainingCoverageChart timeRange={timeRange} botId={bot.id}/>
         </div>
       </div>
 
@@ -195,7 +195,7 @@ export function BotDetailsDashboard({ bot }: BotDetailsProps) {
             <AlertCircle className="w-5 h-5 mr-2 text-pink-500" />
             Lead Generation
           </h2>
-          <LeadGenerationChart timeRange={timeRange} />
+          <LeadGenerationChart timeRange={timeRange} botId={bot.id}/>
         </div>
       </div>
 

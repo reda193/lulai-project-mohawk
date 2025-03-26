@@ -1,85 +1,163 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 interface SentimentTrendsChartProps {
   timeRange: '7d' | '30d' | '90d';
+  botId?: string; // Optional bot ID
 }
 
-// Seeded random number generator
-function seededRandom(seed: number) {
-  const x = Math.sin(seed) * 10000;
-  return x - Math.floor(x);
-}
-
-const SentimentTrendsChart: React.FC<SentimentTrendsChartProps> = ({ timeRange }) => {
-  // Generate random sentiment data based on time range
-  const data = useMemo(() => {
-    // Use consistent seeds based on time range
-    const seedMap = {
-      '7d': 1,
-      '30d': 2,
-      '90d': 3
+interface SentimentData {
+  summary: {
+    totalConversations: number;
+    averageSentimentScore: number;
+    sentimentDistribution: {
+      positive: {
+        count: number;
+        percentage: number;
+      };
+      neutral: {
+        count: number;
+        percentage: number;
+      };
+      negative: {
+        count: number;
+        percentage: number;
+      };
     };
-    const baseSeed = seedMap[timeRange] || 1;
+    sentimentTrend: number;
+  };
+  timeSeriesData: {
+    period: string;
+    conversationCount: number;
+    averageSentiment: number;
+    positive: {
+      count: number;
+      percentage: number;
+    };
+    neutral: {
+      count: number;
+      percentage: number;
+    };
+    negative: {
+      count: number;
+      percentage: number;
+    };
+  }[];
+}
 
-    let days;
-    switch (timeRange) {
-      case '7d': days = 7; break;
-      case '30d': days = 10; break; // Use fewer points for 30d
-      case '90d': days = 12; break; // Use even fewer for 90d
-      default: days = 7;
-    }
-    
-    const result = [];
-    
-    for (let i = 0; i < days; i++) {
-      let label;
-      
-      if (timeRange === '7d') {
-        const date = new Date();
-        date.setDate(date.getDate() - (days - i - 1));
-        label = date.toLocaleDateString('en-US', { weekday: 'short' });
-      } else if (timeRange === '30d') {
-        label = `Week ${Math.floor(i / 2.5) + 1}`;
-      } else {
-        label = `Month ${Math.floor(i / 4) + 1}`;
+const SentimentTrendsChart: React.FC<SentimentTrendsChartProps> = ({ timeRange, botId }) => {
+  const [data, setData] = useState<any[]>([]);
+  const [averageSentiment, setAverageSentiment] = useState({
+    positive: 0,
+    neutral: 0,
+    negative: 0
+  });
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Seeded random for fallback (reusing your existing function)
+  function seededRandom(seed: number) {
+    const x = Math.sin(seed) * 10000;
+    return x - Math.floor(x);
+  }
+
+  useEffect(() => {
+    const fetchSentimentData = async () => {
+      if (!botId) {
+        setIsLoading(false);
+        setError("Please select a bot to view sentiment data");
+        return;
       }
-      
-      // Use seeded random for consistent "randomness"
-      const positiveSeed = baseSeed + i;
-      const neutralSeed = baseSeed + i + 100;
-      const negativeSeed = baseSeed + i + 200;
-      
-      // Generate sentiment values with a positive bias
-      const positive = 45 + Math.floor(seededRandom(positiveSeed) * 30);
-      const neutral = 15 + Math.floor(seededRandom(neutralSeed) * 20);
-      const negative = 100 - positive - neutral;
-      
-      result.push({
-        name: label,
-        positive,
-        neutral, 
-        negative
-      });
-    }
-    
-    return result;
-  }, [timeRange]);
 
-  // Calculate average sentiment
-  const averageSentiment = useMemo(() => {
-    const totalPositive = data.reduce((sum, item) => sum + item.positive, 0);
-    const totalNegative = data.reduce((sum, item) => sum + item.negative, 0);
-    const totalNeutral = data.reduce((sum, item) => sum + item.neutral, 0);
-    
-    return {
-      positive: Math.round(totalPositive / data.length),
-      neutral: Math.round(totalNeutral / data.length),
-      negative: Math.round(totalNegative / data.length),
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        // Calculate start date based on selected time range
+        const endDate = new Date();
+        const startDate = new Date();
+        
+        switch (timeRange) {
+          case '7d':
+            startDate.setDate(endDate.getDate() - 7);
+            break;
+          case '30d':
+            startDate.setDate(endDate.getDate() - 30);
+            break;
+          case '90d':
+            startDate.setDate(endDate.getDate() - 90);
+            break;
+        }
+        
+        // Determine groupBy based on timeRange
+        const groupBy = timeRange === '90d' ? 'week' : 'day';
+        
+        // Construct URL with required botId
+        const url = `/api/bot/${botId}/kpi/sentiment?startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}&groupBy=${groupBy}`;
+        
+        console.log('Fetching sentiment data from:', url);
+        
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+          throw new Error(`Error fetching sentiment data: ${response.statusText}`);
+        }
+        
+        const responseData: SentimentData = await response.json();
+        console.log('Sentiment data received:', responseData);
+        
+        // Transform data for the chart
+        const chartData = responseData.timeSeriesData.map(item => ({
+          name: item.period,
+          positive: Math.round(item.positive.percentage),
+          neutral: Math.round(item.neutral.percentage),
+          negative: Math.round(item.negative.percentage)
+        }));
+        
+        setData(chartData);
+        
+        // Set the average sentiment from the summary
+        if (responseData.summary && responseData.summary.sentimentDistribution) {
+          setAverageSentiment({
+            positive: Math.round(responseData.summary.sentimentDistribution.positive.percentage),
+            neutral: Math.round(responseData.summary.sentimentDistribution.neutral.percentage),
+            negative: Math.round(responseData.summary.sentimentDistribution.negative.percentage)
+          });
+        }
+        
+        setIsLoading(false);
+      } catch (err) {
+        console.error('Error:', err);
+        setError("Failed to load sentiment data");
+        setData([]);
+        setIsLoading(false);
+      }
     };
-  }, [data]);
+
+    fetchSentimentData();
+  }, [timeRange, botId]);
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="h-72 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-500"></div>
+      </div>
+    );
+  }
+
+  // Show error or no data state
+  if (error || data.length === 0) {
+    return (
+      <div className="h-72 flex items-center justify-center">
+        <div className="text-center text-gray-500">
+          {error || "No sentiment data available"}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-72">

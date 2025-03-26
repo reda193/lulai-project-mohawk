@@ -39,6 +39,10 @@ export async function GET(
       );
     }
 
+    // Check if user is an admin
+    const isAdmin = user.role === 'ADMIN';
+    console.log(`User ${user.email} has admin status: ${isAdmin}`);
+
     // Parse query parameters
     const searchParams = req.nextUrl.searchParams;
     const startDate = searchParams.get('startDate') 
@@ -49,13 +53,44 @@ export async function GET(
       ? new Date(searchParams.get('endDate')!) 
       : new Date();
 
-    // Verify bot belongs to user
-    const bot = await db.bot.findFirst({
-      where: { 
-        id: botId,
-        creator_id: user.userId 
+    // If admin, skip bot ownership check
+    let bot;
+    
+    if (isAdmin) {
+      console.log('Admin access - skipping ownership check');
+      // Admin can access any bot
+      bot = await db.bot.findFirst({
+        where: { id: botId }
+      });
+      
+      // Get creator information if needed
+      if (bot) {
+        const creator = await db.user.findUnique({
+          where: { userId: bot.creator_id },
+          select: {
+            userId: true,
+            email: true,
+            first_name: true,
+            last_name: true,
+            role: true
+          }
+        });
+        
+        if (creator) {
+          // Add creator info to bot
+          (bot as any).creator = creator;
+        }
       }
-    });
+    } else {
+      console.log('Regular user access - checking ownership');
+      // Regular users can only access their own bots
+      bot = await db.bot.findFirst({
+        where: { 
+          id: botId,
+          creator_id: user.userId 
+        }
+      });
+    }
 
     if (!bot) {
       return NextResponse.json(
@@ -123,6 +158,24 @@ export async function GET(
       } 
       : { high: 0, medium: 0, low: 0 };
 
+    // Create bot info - include owner data for admin
+    const botInfo = {
+      id: bot.id,
+      name: bot.bot_name
+    };
+    
+    // For admin view, add owner information if available
+    if (isAdmin && (bot as any).creator) {
+      const creator = (bot as any).creator;
+      (botInfo as any).owner = {
+        id: creator.userId,
+        email: creator.email,
+        name: creator.first_name && creator.last_name 
+          ? `${creator.first_name} ${creator.last_name}`
+          : undefined
+      };
+    }
+
     return NextResponse.json({
       timeframe: {
         start: startDate,
@@ -135,10 +188,7 @@ export async function GET(
         satisfaction: satisfactionPercentages,
         trend: "stable" // You could calculate this based on historical data
       },
-      bot: {
-        id: bot.id,
-        name: bot.bot_name
-      }
+      bot: botInfo
     });
   } catch (error) {
     console.error('Error fetching bot CSAT data:', error);

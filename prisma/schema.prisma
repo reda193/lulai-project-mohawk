@@ -45,6 +45,104 @@ model SubscriptionItem {
   @@index([subscriptionId])
 }
 
+// Ticket Management Models
+
+model Ticket {
+  id                String        @id @default(cuid())
+  title             String
+  description       String        @db.Text
+  status            TicketStatus  @default(OPEN)
+  priority          TicketPriority @default(MEDIUM)
+  type              TicketType    @default(ISSUE)
+  client_id         Int
+  client            User          @relation("clientTickets", fields: [client_id], references: [id])
+  solved_by_id      Int?
+  solved_by         User?         @relation("solvedTickets", fields: [solved_by_id], references: [id])
+  bot_id            String?
+  bot               Bot?          @relation(fields: [bot_id], references: [id])
+  created_at        DateTime      @default(now())
+  updated_at        DateTime      @updatedAt
+  response_time     Int?          // Response time in seconds
+  resolved_at       DateTime?
+  ticket_comments   TicketComment[]
+  ticket_attachments TicketAttachment[]
+
+  @@index([client_id])
+  @@index([solved_by_id])
+  @@index([bot_id])
+  @@index([status])
+}
+
+model TicketComment {
+  id              String    @id @default(cuid())
+  ticket_id       String
+  ticket          Ticket    @relation(fields: [ticket_id], references: [id], onDelete: Cascade)
+  user_id         Int
+  user            User      @relation(fields: [user_id], references: [id])
+  content         String    @db.Text
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+  is_internal     Boolean   @default(false)  // For internal notes not visible to client
+
+  @@index([ticket_id])
+  @@index([user_id])
+}
+
+model TicketAttachment {
+  id              String    @id @default(cuid())
+  ticket_id       String
+  ticket          Ticket    @relation(fields: [ticket_id], references: [id], onDelete: Cascade)
+  file_name       String
+  file_url        String
+  file_type       String
+  file_size       Int
+  uploaded_by     Int
+  user            User      @relation(fields: [uploaded_by], references: [id])
+  created_at      DateTime  @default(now())
+
+  @@index([ticket_id])
+  @@index([uploaded_by])
+}
+
+// Ticket analytics and metrics
+model TicketMetrics {
+  id                  String    @id @default(cuid())
+  date                DateTime  @default(now())
+  total_tickets       Int       @default(0)
+  open_tickets        Int       @default(0)
+  in_progress_tickets Int       @default(0)
+  resolved_tickets    Int       @default(0)
+  avg_response_time   Float?    // In hours
+  avg_resolution_time Float?    // In hours
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @updatedAt
+
+  @@unique([date])
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TicketType {
+  ISSUE
+  FEATURE_REQUEST
+  BILLING
+  QUESTION
+  INTEGRATION
+  OTHER
+}
+
 enum PlanType {
   FREE
   BASIC
@@ -62,24 +160,28 @@ enum SubStatus {
 }
 
 model User {
-  id            Int       @id @default(autoincrement())
-  userId        String    @unique @default(cuid())
-  first_name    String?
-  last_name     String?
-  email         String    @unique
-  emailVerified DateTime?
-  password      String?
-  role          Role      @default(MEMBER)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  verified      Boolean   @default(false)
-  attempts      Int       @default(0)
-  lastLogin     DateTime?
-  onboarding    UserOnboarding?
-  subscription  Subscription?
-  accounts      Account[]
-  sessions      Session[]
-  bots          Bot[]
+  id                Int       @id @default(autoincrement())
+  userId            String    @unique @default(cuid())
+  first_name        String?
+  last_name         String?
+  email             String    @unique
+  emailVerified     DateTime?
+  password          String?
+  role              Role      @default(MEMBER)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  verified          Boolean   @default(false)
+  attempts          Int       @default(0)
+  lastLogin         DateTime?
+  onboarding        UserOnboarding?
+  subscription      Subscription?
+  accounts          Account[]
+  sessions          Session[]
+  bots              Bot[]
+  client_tickets    Ticket[]  @relation("clientTickets")
+  solved_tickets    Ticket[]  @relation("solvedTickets")
+  comments          TicketComment[]
+  ticket_attachments TicketAttachment[]
 }
 
 model Account {
@@ -128,6 +230,7 @@ model Bot {
   training_coverage    Training_Coverage[]
   bot_qa               Bot_QA[]
   bot_training         Bot_Training[]
+  tickets              Ticket[]            // Tickets related to this bot
 
   @@index([creator_id])
 }

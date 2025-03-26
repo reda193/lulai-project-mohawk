@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { MenuIcon, Brain, ArrowLeft, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import Sidebar from '@/components/Sidebar/Sidebar';
@@ -8,14 +8,88 @@ import AgentNavigation from '@/components/Navigation/AgentNavigation';
 import { usePathname } from 'next/navigation';
 import TrainingCoverageChart from '@/components/BotDetails/Charts/TrainingCoverageChart';
 
+interface CoverageData {
+  summary: {
+    totalUniqueQueries: number;
+    coveredIntents: number;
+    coveragePercentage: number;
+    latestMeasurement: string | null;
+  };
+  history: {
+    date: string;
+    totalQueries: number;
+    coveredIntents: number;
+    coveragePercentage: number;
+  }[];
+  recommendations: string[];
+}
+
 const TrainingCoveragePage = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d'>('30d');
+  const [coverageData, setCoverageData] = useState<CoverageData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
   // Get agent ID from path
   const pathname = usePathname();
   const pathSegments = pathname?.split('/') || [];
   const agentId = pathSegments.length > 2 ? pathSegments[2] : null;
+
+  useEffect(() => {
+    const fetchCoverageInsights = async () => {
+      if (!agentId) {
+        setError("No agent selected");
+        setIsLoading(false);
+        return;
+      }
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        // Calculate start date based on selected time range
+        const endDate = new Date();
+        const startDate = new Date();
+        
+        switch (timeRange) {
+          case '7d':
+            startDate.setDate(endDate.getDate() - 7);
+            break;
+          case '30d':
+            startDate.setDate(endDate.getDate() - 30);
+            break;
+          case '90d':
+            startDate.setDate(endDate.getDate() - 90);
+            break;
+        }
+        
+        // Construct URL with required agentId
+        const url = `/api/bot/${agentId}/kpi/training?startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}`;
+        
+        console.log('Fetching training coverage insights from:', url);
+        
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+          throw new Error(`Error fetching training coverage: ${response.statusText}`);
+        }
+        
+        const responseData: CoverageData = await response.json();
+        console.log('Training coverage insights received:', responseData);
+        
+        setCoverageData(responseData);
+        setIsLoading(false);
+      } catch (err) {
+        console.error('Error:', err);
+        setError("Failed to load training coverage insights");
+        setCoverageData(null);
+        setIsLoading(false);
+      }
+    };
+
+    fetchCoverageInsights();
+  }, [agentId, timeRange]);
 
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -82,246 +156,63 @@ const TrainingCoveragePage = () => {
                 <Brain className="w-5 h-5 mr-2 text-purple-500" />
                 Training Coverage
               </h2>
-              <TrainingCoverageChart timeRange={timeRange} />
+              {isLoading ? (
+                <div className="flex items-center justify-center h-72">
+                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
+                </div>
+              ) : error ? (
+                <div className="text-center text-red-500 h-72 flex items-center justify-center">
+                  {error}
+                </div>
+              ) : (
+                <TrainingCoverageChart 
+                  timeRange={timeRange} 
+                  botId={agentId || ''} 
+                />
+              )}
             </div>
             
             {/* Training Coverage Details */}
             <div className="bg-white rounded-lg shadow p-6">
               <h2 className="text-lg font-medium mb-4">Training Coverage Insights</h2>
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <h3 className="text-sm font-medium text-gray-500">Overall Coverage</h3>
-                    <p className="text-lg font-semibold">87%</p>
-                  </div>
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <h3 className="text-sm font-medium text-gray-500">Coverage Change</h3>
-                    <p className="text-lg font-semibold text-green-500">+12% from previous</p>
-                  </div>
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <h3 className="text-sm font-medium text-gray-500">Training Examples</h3>
-                    <p className="text-lg font-semibold">2,457</p>
-                  </div>
+              {isLoading || !coverageData ? (
+                <div className="flex items-center justify-center h-40">
+                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <h3 className="text-sm font-medium text-gray-500 mb-2">Recommendations to Improve Coverage</h3>
-                  <ul className="list-disc pl-5 space-y-1 text-sm">
-                    <li>Add training examples for new product feature queries</li>
-                    <li>Expand dataset with more billing and pricing variations</li>
-                    <li>Incorporate common misspellings and abbreviations</li>
-                  </ul>
+              ) : error ? (
+                <div className="text-center text-red-500">
+                  {error}
                 </div>
-              </div>
-            </div>
-            
-            {/* Category Coverage */}
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-lg font-medium mb-4">Category Coverage</h2>
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4 text-green-500" />
-                        <span className="text-sm font-medium">Account Management</span>
-                      </div>
-                      <span className="text-sm font-semibold">95%</span>
+              ) : (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <h3 className="text-sm font-medium text-gray-500">Overall Coverage</h3>
+                      <p className="text-lg font-semibold">{coverageData.summary.coveragePercentage.toFixed(1)}%</p>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div className="bg-green-500 h-2 rounded-full" style={{ width: '95%' }}></div>
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <h3 className="text-sm font-medium text-gray-500">Unique Queries</h3>
+                      <p className="text-lg font-semibold">{coverageData.summary.totalUniqueQueries}</p>
+                    </div>
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <h3 className="text-sm font-medium text-gray-500">Covered Intents</h3>
+                      <p className="text-lg font-semibold">{coverageData.summary.coveredIntents}</p>
                     </div>
                   </div>
-                  
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4 text-green-500" />
-                        <span className="text-sm font-medium">Basic Features</span>
-                      </div>
-                      <span className="text-sm font-semibold">92%</span>
+                  {coverageData.recommendations && coverageData.recommendations.length > 0 && (
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <h3 className="text-sm font-medium text-gray-500 mb-2">Recommendations to Improve Coverage</h3>
+                      <ul className="list-disc pl-5 space-y-1 text-sm">
+                        {coverageData.recommendations.map((rec, index) => (
+                          <li key={index}>{rec}</li>
+                        ))}
+                      </ul>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div className="bg-green-500 h-2 rounded-full" style={{ width: '92%' }}></div>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4 text-green-500" />
-                        <span className="text-sm font-medium">Billing Questions</span>
-                      </div>
-                      <span className="text-sm font-semibold">88%</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div className="bg-green-500 h-2 rounded-full" style={{ width: '88%' }}></div>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <AlertTriangle className="w-4 h-4 text-yellow-500" />
-                        <span className="text-sm font-medium">Advanced Features</span>
-                      </div>
-                      <span className="text-sm font-semibold">76%</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div className="bg-yellow-500 h-2 rounded-full" style={{ width: '76%' }}></div>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <AlertTriangle className="w-4 h-4 text-yellow-500" />
-                        <span className="text-sm font-medium">Integrations</span>
-                      </div>
-                      <span className="text-sm font-semibold">72%</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div className="bg-yellow-500 h-2 rounded-full" style={{ width: '72%' }}></div>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <XCircle className="w-4 h-4 text-red-500" />
-                        <span className="text-sm font-medium">New Features</span>
-                      </div>
-                      <span className="text-sm font-semibold">45%</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div className="bg-red-500 h-2 rounded-full" style={{ width: '45%' }}></div>
-                    </div>
-                  </div>
+                  )}
                 </div>
-              </div>
+              )}
             </div>
-            
-            {/* Training Gaps */}
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-lg font-medium mb-4">Critical Training Gaps</h2>
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Category
-                      </th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Example Queries
-                      </th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Coverage
-                      </th>
-                      <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Priority
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    <tr>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">New Dashboard Features</div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="text-sm text-gray-900">
-                          <ul className="list-disc pl-5 space-y-1">
-                            <li>"How do I use the new reporting dashboard?"</li>
-                            <li>"Where are the custom widgets located?"</li>
-                          </ul>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">42%</div>
-                        <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
-                          <div className="bg-red-500 h-1.5 rounded-full" style={{ width: '42%' }}></div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                        <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
-                          High
-                        </span>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">API Documentation</div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="text-sm text-gray-900">
-                          <ul className="list-disc pl-5 space-y-1">
-                            <li>"How do I authenticate with the API?"</li>
-                            <li>"What are the rate limits for API calls?"</li>
-                          </ul>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">58%</div>
-                        <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
-                          <div className="bg-yellow-500 h-1.5 rounded-full" style={{ width: '58%' }}></div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                        <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
-                          Medium
-                        </span>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">Third-party Integrations</div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="text-sm text-gray-900">
-                          <ul className="list-disc pl-5 space-y-1">
-                            <li>"How do I connect with Zapier?"</li>
-                            <li>"Can I integrate with Google Sheets?"</li>
-                          </ul>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">65%</div>
-                        <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
-                          <div className="bg-yellow-500 h-1.5 rounded-full" style={{ width: '65%' }}></div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                        <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
-                          Medium
-                        </span>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">Mobile Features</div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="text-sm text-gray-900">
-                          <ul className="list-disc pl-5 space-y-1">
-                            <li>"Does the app work offline?"</li>
-                            <li>"How do I enable push notifications?"</li>
-                          </ul>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">68%</div>
-                        <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
-                          <div className="bg-yellow-500 h-1.5 rounded-full" style={{ width: '68%' }}></div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                        <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
-                          Low
-                        </span>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
+
           </div>
         </div>
       </div>

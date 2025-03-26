@@ -1,91 +1,158 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface LeadGenerationChartProps {
   timeRange: '7d' | '30d' | '90d';
+  botId?: string; // Optional bot ID
 }
 
-const LeadGenerationChart: React.FC<LeadGenerationChartProps> = ({ timeRange }) => {
-  // Generate random lead data based on time range
-  const data = useMemo(() => {
-    let days;
-    switch (timeRange) {
-      case '7d': days = 7; break;
-      case '30d': days = 4; break; // Use weeks for 30d
-      case '90d': days = 3; break; // Use months for 90d
-      default: days = 7;
-    }
-    
-    const result = [];
-    
-    for (let i = 0; i < days; i++) {
-      let label;
-      if (timeRange === '7d') {
-        const date = new Date();
-        date.setDate(date.getDate() - (days - i - 1));
-        label = date.toLocaleDateString('en-US', { weekday: 'short' });
-      } else if (timeRange === '30d') {
-        label = `Week ${i + 1}`;
-      } else {
-        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        const date = new Date();
-        date.setMonth(date.getMonth() - (days - i - 1));
-        label = monthNames[date.getMonth()];
-      }
-      
-      // Base numbers
-      const baseLeads = timeRange === '7d' ? 12 : timeRange === '30d' ? 45 : 120;
-      const randomFactor = Math.random() * 0.5 + 0.75; // 0.75 to 1.25
-      
-      result.push({
-        name: label,
-        leads: Math.round(baseLeads * randomFactor),
-      });
-    }
-    
-    return result;
-  }, [timeRange]);
+interface LeadData {
+  summary: {
+    totalLeadConversations: number;
+    totalLeadMessages: number;
+    conversionRate: number;
+    totalConversations: number;
+  };
+  timeSeriesData: Array<{
+    period: string;
+    leadConversations: number;
+    leadMessages: number;
+  }>;
+  exampleLeads?: Array<{
+    conversationId: string;
+    leadText: string;
+    timestamp: string;
+  }>;
+}
 
-  // Calculate total leads
-  const totalLeads = useMemo(() => {
-    return data.reduce((sum, item) => sum + item.leads, 0);
-  }, [data]);
+const LeadGenerationChart: React.FC<LeadGenerationChartProps> = ({ timeRange, botId }) => {
+  const [leadData, setLeadData] = useState<LeadData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchLeadData = async () => {
+      if (!botId) {
+        setIsLoading(false);
+        setError("Please select a bot to view lead data");
+        return;
+      }
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        // Calculate start date based on selected time range
+        const endDate = new Date();
+        const startDate = new Date();
+        
+        switch (timeRange) {
+          case '7d':
+            startDate.setDate(endDate.getDate() - 7);
+            break;
+          case '30d':
+            startDate.setDate(endDate.getDate() - 30);
+            break;
+          case '90d':
+            startDate.setDate(endDate.getDate() - 90);
+            break;
+        }
+        
+        // Determine groupBy based on timeRange
+        const groupBy = timeRange === '90d' ? 'month' : timeRange === '30d' ? 'week' : 'day';
+        
+        // Construct URL with required botId
+        const url = `/api/bot/${botId}/kpi/leads?startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}&groupBy=${groupBy}`;
+        
+        console.log('Fetching lead generation data from:', url);
+        
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+          throw new Error(`Error fetching lead data: ${response.statusText}`);
+        }
+        
+        const responseData: LeadData = await response.json();
+        console.log('Lead generation data received:', responseData);
+        
+        setLeadData(responseData);
+        setIsLoading(false);
+      } catch (err) {
+        console.error('Error:', err);
+        setError("Failed to load lead generation data");
+        setLeadData(null);
+        setIsLoading(false);
+      }
+    };
+
+    fetchLeadData();
+  }, [timeRange, botId]);
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="h-72 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
+      </div>
+    );
+  }
+
+  // Show error or no data state
+  if (error || !leadData) {
+    return (
+      <div className="h-72 flex items-center justify-center">
+        <div className="text-center text-gray-500">
+          {error || "No lead generation data available"}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-72">
       <div className="text-center mb-2">
-        <div className="text-sm text-gray-500">Total Leads Generated</div>
-        <div className="text-2xl font-bold">{totalLeads}</div>
+        <div className="text-sm text-gray-500">Total Lead Conversations</div>
+        <div className="text-2xl font-bold">
+          {leadData.summary.totalLeadConversations.toLocaleString()}
+        </div>
+        <div className="text-xs text-gray-500">
+          Conversion Rate: {leadData.summary.conversionRate.toFixed(1)}%
+        </div>
       </div>
       
       <ResponsiveContainer width="100%" height="85%">
         <BarChart
-          data={data}
+          data={leadData.timeSeriesData}
           margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
         >
           <CartesianGrid strokeDasharray="3 3" vertical={false} />
-          <XAxis 
-            dataKey="name" 
+          <XAxis
+            dataKey="period"
             axisLine={false}
             tickLine={false}
           />
-          <YAxis 
+          <YAxis
             axisLine={false}
             tickLine={false}
           />
           <Tooltip
-            formatter={(value: number) => [value, 'Leads']}
-            contentStyle={{ 
-              backgroundColor: '#fff', 
+            formatter={(value: number) => [value.toLocaleString(), 'Lead Conversations']}
+            contentStyle={{
+              backgroundColor: '#fff',
               borderRadius: '0.5rem',
               boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
               border: 'none',
               padding: '0.75rem'
             }}
           />
-          <Bar dataKey="leads" fill="#6366F1" radius={[4, 4, 0, 0]} barSize={timeRange === '7d' ? 30 : 50} />
+          <Bar 
+            dataKey="leadConversations" 
+            fill="#6366F1" 
+            radius={[4, 4, 0, 0]} 
+            barSize={timeRange === '7d' ? 30 : 50} 
+          />
         </BarChart>
       </ResponsiveContainer>
     </div>

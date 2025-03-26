@@ -1,4 +1,4 @@
-import { PrismaClient, BotModel, Role, PlanType, SubStatus } from '@prisma/client';
+import { PrismaClient, BotModel, Role, PlanType, SubStatus, TicketStatus, TicketPriority, TicketType } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { hash } from "bcryptjs";
 
@@ -17,6 +17,11 @@ async function main() {
   await prisma.bot_Training.deleteMany({});
   await prisma.bot_QA.deleteMany({});
   await prisma.bot_Appearance.deleteMany({});
+  // Clean up ticket tables
+  await prisma.ticketAttachment.deleteMany({});
+  await prisma.ticketComment.deleteMany({});
+  await prisma.ticket.deleteMany({});
+  await prisma.ticketMetrics.deleteMany({});
   await prisma.bot.deleteMany({});
   await prisma.subscriptionItem.deleteMany({});
   await prisma.subscription.deleteMany({});
@@ -26,7 +31,7 @@ async function main() {
   await prisma.user.deleteMany({});
   
   // Hash the password
-  const hashedPassword = await hash('Admintest123', 10);
+  const hashedPassword = await hash('Admintest123!', 10);
   
   // Create test users with different roles
   const users = [];
@@ -457,6 +462,294 @@ async function main() {
     }
   }
   
+  // Generate ticket data
+  console.log('Generating ticket data...');
+  
+  // Sample ticket titles and descriptions for different ticket types
+  const ticketTemplates = {
+    ISSUE: [
+      {
+        title: 'Bot not responding to queries',
+        description: 'My bot stops responding after 2-3 messages. This started happening yesterday.'
+      },
+      {
+        title: 'Incorrect responses from bot',
+        description: 'The bot is providing inaccurate information about our pricing plans.'
+      },
+      {
+        title: 'Performance degradation',
+        description: 'The bot has been much slower to respond in the last week.'
+      }
+    ],
+    FEATURE_REQUEST: [
+      {
+        title: 'Add support for multiple languages',
+        description: 'We need our bot to support Spanish and French in addition to English.'
+      },
+      {
+        title: 'Implement file attachment handling',
+        description: 'Would like the bot to accept and process PDF uploads from users.'
+      },
+      {
+        title: 'Add analytics dashboard',
+        description: 'Need a way to track bot performance and user satisfaction over time.'
+      }
+    ],
+    BILLING: [
+      {
+        title: 'Incorrect charges on invoice',
+        description: 'I was charged for the Pro plan but I only signed up for Basic.'
+      },
+      {
+        title: 'Unable to update payment method',
+        description: 'The system rejects my new credit card information every time.'
+      },
+      {
+        title: 'Request for refund',
+        description: 'The service did not meet our expectations. Requesting a partial refund.'
+      }
+    ],
+    QUESTION: [
+      {
+        title: 'How to customize bot appearance?',
+        description: 'I need instructions on changing the bot avatar and color scheme.'
+      },
+      {
+        title: 'Integration with our CRM',
+        description: 'Can the bot be integrated with Salesforce? What are the steps?'
+      },
+      {
+        title: 'Maximum number of bots allowed',
+        description: 'How many bots can I create under my current plan?'
+      }
+    ],
+    INTEGRATION: [
+      {
+        title: 'API authentication failing',
+        description: 'Getting 401 errors when trying to connect to the API with provided credentials.'
+      },
+      {
+        title: 'Webhook setup instructions',
+        description: 'Need help setting up webhooks to receive bot conversation data.'
+      },
+      {
+        title: 'Custom integration development',
+        description: 'Looking for guidance on developing a custom integration with our internal tools.'
+      }
+    ],
+    OTHER: [
+      {
+        title: 'Account access issues',
+        description: 'Unable to log in with correct credentials. No reset email arrives.'
+      },
+      {
+        title: 'Data export request',
+        description: 'Need to export all our bot conversation data for compliance purposes.'
+      },
+      {
+        title: 'Request for consultation',
+        description: 'Would like to schedule a call with a support specialist about bot optimization.'
+      }
+    ]
+  };
+  
+  // Sample comments for tickets
+  const ticketComments = [
+    'I checked the logs and found some unusual patterns. Can you provide more details about when this started happening?',
+    'This issue appears to be related to our recent update. We\'re working on a fix.',
+    'I\'ve escalated this to our engineering team. They\'ll investigate and get back to you within 24 hours.',
+    'Thanks for your patience. We\'ve identified the root cause and are implementing a solution.',
+    'Could you please try clearing your cache and let us know if the issue persists?',
+    'This feature is on our roadmap for Q3. I\'ll add your vote to prioritize it.',
+    'We\'ve deployed a fix. Please let us know if you still experience this issue.',
+    'I\'ve issued a credit to your account for the inconvenience caused.',
+    'This is an expected behavior based on your current plan. You would need to upgrade to access this feature.',
+    'I\'ve attached documentation that should help with this process.'
+  ];
+  
+  // Sample file types for attachments
+  const fileTypes = [
+    { type: 'image/png', extension: 'png', sizeRange: [50, 500] },
+    { type: 'image/jpeg', extension: 'jpg', sizeRange: [100, 1000] },
+    { type: 'application/pdf', extension: 'pdf', sizeRange: [200, 2000] },
+    { type: 'text/plain', extension: 'txt', sizeRange: [5, 100] },
+    { type: 'application/json', extension: 'json', sizeRange: [10, 200] },
+    { type: 'application/zip', extension: 'zip', sizeRange: [500, 5000] }
+  ];
+  
+  // Generate a specific number of tickets for each user
+  const ticketsPerUser = {
+    [adminUser.id]: 5, 
+    [memberUser.id]: 10,
+    [freeUser.id]: 3
+  };
+  
+  // Create metrics for the last 30 days
+  const thirtyDaysAgo = new Date(now);
+  thirtyDaysAgo.setDate(now.getDate() - 30);
+  
+  for (let i = 0; i <= 30; i++) {
+    const metricDate = new Date(thirtyDaysAgo);
+    metricDate.setDate(thirtyDaysAgo.getDate() + i);
+    
+    // Start with some base metrics that increase slightly over time
+    const baseOpen = 5 + Math.floor(i / 3);
+    const baseInProgress = 3 + Math.floor(i / 5);
+    const baseResolved = 4 + Math.floor(i / 2);
+    
+    // Add some random variation
+    const randomVariation = () => Math.floor(Math.random() * 5) - 2;
+    
+    const open = Math.max(0, baseOpen + randomVariation());
+    const inProgress = Math.max(0, baseInProgress + randomVariation());
+    const resolved = Math.max(0, baseResolved + randomVariation());
+    const total = open + inProgress + resolved;
+    
+    await prisma.ticketMetrics.create({
+      data: {
+        date: metricDate,
+        total_tickets: total,
+        open_tickets: open,
+        in_progress_tickets: inProgress,
+        resolved_tickets: resolved,
+        avg_response_time: 2 + Math.random() * 10, // 2-12 hours
+        avg_resolution_time: 24 + Math.random() * 48 // 24-72 hours
+      }
+    });
+  }
+  
+  // Track all tickets for reference in comments and attachments
+  const allTickets = [];
+  
+  // Create tickets for each user
+  for (const [userIdStr, ticketCount] of Object.entries(ticketsPerUser)) {
+    const userId = parseInt(userIdStr);
+    const user = users.find(u => u.id === userId);
+    
+    if (!user) continue;
+    
+    for (let i = 0; i < ticketCount; i++) {
+      // Pick a random bot for this ticket
+      const randomBot = allBots[Math.floor(Math.random() * allBots.length)];
+      
+      // Determine ticket type, priority, and status
+      const ticketTypes = Object.keys(TicketType);
+      const ticketType = ticketTypes[Math.floor(Math.random() * ticketTypes.length)] as TicketType;
+      
+      const priorityValues = Object.values(TicketPriority);
+      const ticketPriority = priorityValues[Math.floor(Math.random() * priorityValues.length)];
+      
+      const statusValues = Object.values(TicketStatus);
+      let ticketStatus = statusValues[Math.floor(Math.random() * statusValues.length)];
+      
+      // Template for this ticket type
+      const templates = ticketTemplates[ticketType];
+      const template = templates[Math.floor(Math.random() * templates.length)];
+      
+      // Random creation date in the last 30 days
+      const randomDaysAgo = Math.floor(Math.random() * 30);
+      const ticketDate = new Date(now);
+      ticketDate.setDate(now.getDate() - randomDaysAgo);
+      
+      // Resolution date will be set if the ticket is resolved or closed
+      let resolvedAt = null;
+      if (ticketStatus === 'RESOLVED' || ticketStatus === 'CLOSED') {
+        resolvedAt = new Date(ticketDate);
+        resolvedAt.setHours(resolvedAt.getHours() + Math.floor(Math.random() * 72) + 1); // 1-72 hours later
+      }
+      
+      // Response time in seconds (if applicable)
+      const responseTime = Math.floor(Math.random() * 3600) + 300; // 5-65 minutes
+      
+      // Determine who solved the ticket (if applicable)
+      let solvedById = null;
+      if (ticketStatus === 'RESOLVED' || ticketStatus === 'CLOSED') {
+        // Admin user typically resolves tickets
+        solvedById = adminUser.id;
+      }
+      
+      const ticket = await prisma.ticket.create({
+        data: {
+          title: template.title,
+          description: template.description,
+          status: ticketStatus,
+          priority: ticketPriority,
+          type: ticketType,
+          client_id: userId,
+          solved_by_id: solvedById,
+          bot_id: randomBot.id,
+          created_at: ticketDate,
+          updated_at: resolvedAt || ticketDate,
+          response_time: responseTime,
+          resolved_at: resolvedAt
+        }
+      });
+      
+      allTickets.push(ticket);
+      
+      // Generate comments for this ticket
+      const commentCount = Math.floor(Math.random() * 5) + 1; // 1-5 comments
+      
+      let commentDate = new Date(ticketDate);
+      commentDate.setMinutes(commentDate.getMinutes() + 30); // First comment 30 minutes after ticket creation
+      
+      for (let j = 0; j < commentCount; j++) {
+        // Alternate between client and support (admin) comments
+        const commentUser = j % 2 === 0 ? adminUser.id : userId;
+        
+        // Internal notes are only created by admin and only sometimes
+        const isInternal = commentUser === adminUser.id && Math.random() < 0.3;
+        
+        await prisma.ticketComment.create({
+          data: {
+            ticket_id: ticket.id,
+            user_id: commentUser,
+            content: ticketComments[Math.floor(Math.random() * ticketComments.length)],
+            created_at: commentDate,
+            updated_at: commentDate,
+            is_internal: isInternal
+          }
+        });
+        
+        // Next comment is 1-24 hours later
+        commentDate = new Date(commentDate);
+        commentDate.setHours(commentDate.getHours() + Math.floor(Math.random() * 24) + 1);
+        
+        // Don't create comments after the ticket was resolved
+        if (resolvedAt && commentDate > resolvedAt) break;
+      }
+      
+      // Generate attachments for some tickets (40% chance)
+      if (Math.random() < 0.4) {
+        const attachmentCount = Math.floor(Math.random() * 3) + 1; // 1-3 attachments
+        
+        for (let j = 0; j < attachmentCount; j++) {
+          const fileType = fileTypes[Math.floor(Math.random() * fileTypes.length)];
+          const fileSize = Math.floor(Math.random() * (fileType.sizeRange[1] - fileType.sizeRange[0])) + fileType.sizeRange[0];
+          
+          // File name based on ticket and type
+          const fileName = `ticket_${ticket.id.substring(0, 8)}_attachment_${j + 1}.${fileType.extension}`;
+          
+          // Random uploader (either client or admin)
+          const uploaderId = Math.random() < 0.7 ? userId : adminUser.id;
+          
+          await prisma.ticketAttachment.create({
+            data: {
+              ticket_id: ticket.id,
+              file_name: fileName,
+              file_url: `https://storage.example.com/attachments/${fileName}`,
+              file_type: fileType.type,
+              file_size: fileSize,
+              uploaded_by: uploaderId,
+              created_at: new Date(ticketDate)
+            }
+          });
+        }
+      }
+    }
+  }
+  
+  console.log(`Created ${allTickets.length} tickets with comments and attachments`);
   console.log('Seed completed successfully!');
 }
 

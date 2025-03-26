@@ -4,19 +4,30 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { z } from "zod";
 
-const queryFilterSchema = z.object({
-  botId: z.string().optional(),
+const unrecognizedQuerySchema = z.object({
   startDate: z.string().optional(),
   endDate: z.string().optional(),
-  limit: z.string().optional().transform(val => val ? parseInt(val) : 20),
-  page: z.string().optional().transform(val => val ? parseInt(val) : 1),
-  sortBy: z.enum(['frequency', 'first_seen_at', 'last_seen_at']).default('frequency'),
-  sortDirection: z.enum(['asc', 'desc']).default('desc')
+  limit: z.number().int().positive().optional().default(100),
+  minFrequency: z.number().int().positive().optional().default(1)
 });
 
-// GET: List all unrecognized queries across user's bots
-export async function GET(req: Request) {
+// GET: Fetch unrecognized queries data for a specific bot
+export async function GET(
+  req: Request,
+  context: any,
+) {
   try {
+    const params = await context.params;
+    const botId = params.botId;
+    
+    if (!botId) {
+      return NextResponse.json(
+        { error: "Bot ID is required" },
+        { status: 400 }
+      );
+    }
+
+    // Authenticate the user
     const session = await getServerSession(authOptions);
     
     if (!session || !session.user.email) {
@@ -37,16 +48,17 @@ export async function GET(req: Request) {
       );
     }
 
+    // Check if user is an admin
+    const isAdmin = user.role === 'ADMIN';
+    console.log(`User ${user.email} has admin status: ${isAdmin}`);
+
     // Parse and validate query parameters
     const url = new URL(req.url);
-    const validated = queryFilterSchema.safeParse({
-      botId: url.searchParams.get('botId'),
-      startDate: url.searchParams.get('startDate'),
-      endDate: url.searchParams.get('endDate'),
-      limit: url.searchParams.get('limit'),
-      page: url.searchParams.get('page'),
-      sortBy: url.searchParams.get('sortBy') || 'frequency',
-      sortDirection: url.searchParams.get('sortDirection') || 'desc'
+    const validated = unrecognizedQuerySchema.safeParse({
+      startDate: url.searchParams.get('startDate') || undefined,
+      endDate: url.searchParams.get('endDate') || undefined,
+      limit: url.searchParams.get('limit') ? parseInt(url.searchParams.get('limit') as string) : 100,
+      minFrequency: url.searchParams.get('minFrequency') ? parseInt(url.searchParams.get('minFrequency') as string) : 1
     });
 
     if (!validated.success) {
@@ -56,249 +68,61 @@ export async function GET(req: Request) {
       );
     }
 
-    const { botId, startDate, endDate, limit, page, sortBy, sortDirection } = validated.data;
-
-    // Default to last 30 days if no dates provided
-    const defaultStartDate = new Date();
-    defaultStartDate.setDate(defaultStartDate.getDate() - 30);
+    const { startDate, endDate, limit, minFrequency } = validated.data;
     
-    const startDateTime = startDate ? new Date(startDate) : defaultStartDate;
-    const endDateTime = endDate ? new Date(endDate) : new Date();
+    // Parse dates if provided
+    const startDateTime = startDate ? new Date(startDate) : undefined;
+    const endDateTime = endDate ? new Date(endDate) : undefined;
 
-    // Get user's bots or specific bot
-    const botsCondition = botId 
-      ? { id: botId, creator_id: user.userId }
-      : { creator_id: user.userId };
-
-    const bots = await db.bot.findMany({
-      where: botsCondition,
-      select: {
-        id: true,
-        bot_name: true
-      }
-    });
-
-    if (bots.length === 0) {
-      return NextResponse.json({
-        message: botId ? "Bot not found or unauthorized" : "No bots found for this user",
-        queries: [],
-        pagination: {
-          page: 1,
-          limit: 20,
-          total: 0,
-          totalPages: 0
+    // If admin, skip bot ownership check
+    let bot;
+    
+    if (isAdmin) {
+      console.log('Admin access - skipping ownership check');
+      // Admin can access any bot
+      bot = await db.bot.findFirst({
+        where: { id: botId },
+        select: {
+          id: true,
+          bot_name: true,
+          model_type: true,
+          creator_id: true
         }
-      }, { status: botId ? 404 : 200 });
-    }
-
-    const botIds = bots.map(bot => bot.id);
-
-    // Build the query for unrecognized queries
-    const queryCondition = {
-      message: {
-        conversation: {
-          bot_id: {
-            in: botIds
-          },
-          start_time: {
-            gte: startDateTime,
-            lte: endDateTime
-          }
-        }
-      }
-    };
-
-    // Count total matching queries for pagination
-    const totalQueries = await db.unrecognizedQueries.count({
-      where: queryCondition
-    });
-
-    // Calculate pagination
-    const skip = (page - 1) * limit;
-    const totalPages = Math.ceil(totalQueries / limit);
-
-    // Fetch paginated queries
-    const queries = await db.unrecognizedQueries.findMany({
-      where: queryCondition,
-      orderBy: {
-        [sortBy]: sortDirection
-      },
-      skip,
-      take: limit,
-      include: {
-        message: {
+      });
+      
+      // Get creator information if needed
+      if (bot) {
+        const creator = await db.user.findUnique({
+          where: { userId: bot.creator_id },
           select: {
-            conversation: {
-              select: {
-                bot_id: true
-              }
-            }
+            userId: true,
+            email: true,
+            first_name: true,
+            last_name: true,
+            role: true
           }
+        });
+        
+        if (creator) {
+          // Add creator info to bot
+          (bot as any).creator = creator;
         }
       }
-    });
-
-    // Map bot names to queries
-    const botsMap = bots.reduce((map, bot) => {
-      map[bot.id] = bot.bot_name;
-      return map;
-    }, {} as Record<string, string>);
-
-    // Format the queries
-    const formattedQueries = queries.map(query => ({
-      id: query.id,
-      query: query.query_text,
-      frequency: query.frequency,
-      botId: query.message.conversation.bot_id,
-      botName: botsMap[query.message.conversation.bot_id] || 'Unknown Bot',
-      firstSeen: query.first_seen_at,
-      lastSeen: query.last_seen_at
-    }));
-
-    // Group by query text to combine frequencies across bots
-    const queryGroups: Record<string, {
-      query: string,
-      totalFrequency: number,
-      byBot: Record<string, {
-        botId: string,
-        botName: string,
-        frequency: number,
-        firstSeen: Date,
-        lastSeen: Date
-      }>
-    }> = {};
-
-    formattedQueries.forEach(q => {
-      if (!queryGroups[q.query]) {
-        queryGroups[q.query] = {
-          query: q.query,
-          totalFrequency: 0,
-          byBot: {}
-        };
-      }
-
-      queryGroups[q.query].totalFrequency += q.frequency;
-
-      if (!queryGroups[q.query].byBot[q.botId]) {
-        queryGroups[q.query].byBot[q.botId] = {
-          botId: q.botId,
-          botName: q.botName,
-          frequency: 0,
-          firstSeen: q.firstSeen,
-          lastSeen: q.lastSeen
-        };
-      }
-
-      queryGroups[q.query].byBot[q.botId].frequency += q.frequency;
-
-      // Update first seen if this instance is earlier
-      if (q.firstSeen < queryGroups[q.query].byBot[q.botId].firstSeen) {
-        queryGroups[q.query].byBot[q.botId].firstSeen = q.firstSeen;
-      }
-
-      // Update last seen if this instance is later
-      if (q.lastSeen > queryGroups[q.query].byBot[q.botId].lastSeen) {
-        queryGroups[q.query].byBot[q.botId].lastSeen = q.lastSeen;
-      }
-    });
-
-    // Convert to array and format for response
-    const groupedQueries = Object.values(queryGroups).map(group => ({
-      query: group.query,
-      totalFrequency: group.totalFrequency,
-      bots: Object.values(group.byBot).map(bot => ({
-        id: bot.botId,
-        name: bot.botName,
-        frequency: bot.frequency,
-        firstSeen: bot.firstSeen,
-        lastSeen: bot.lastSeen
-      }))
-    }));
-
-    // Sort grouped queries according to sort parameters
-    groupedQueries.sort((a, b) => {
-      if (sortBy === 'frequency') {
-        return sortDirection === 'desc' 
-          ? b.totalFrequency - a.totalFrequency 
-          : a.totalFrequency - b.totalFrequency;
-      }
-      
-      // For date-based sorting, use the earliest/latest date across all bots
-      if (sortBy === 'first_seen_at') {
-        const aDate = Math.min(...a.bots.map(b => new Date(b.firstSeen).getTime()));
-        const bDate = Math.min(...b.bots.map(b => new Date(b.firstSeen).getTime()));
-        return sortDirection === 'desc' ? bDate - aDate : aDate - bDate;
-      }
-      
-      if (sortBy === 'last_seen_at') {
-        const aDate = Math.max(...a.bots.map(b => new Date(b.lastSeen).getTime()));
-        const bDate = Math.max(...b.bots.map(b => new Date(b.lastSeen).getTime()));
-        return sortDirection === 'desc' ? bDate - aDate : aDate - bDate;
-      }
-      
-      return 0;
-    });
-
-    return NextResponse.json({
-      queries: groupedQueries,
-      pagination: {
-        page,
-        limit,
-        total: totalQueries,
-        totalPages
-      }
-    }, { status: 200 });
-  } catch (error) {
-    console.error("Error fetching unrecognized queries:", error);
-    return NextResponse.json(
-      { error: "Error fetching unrecognized queries" },
-      { status: 500 }
-    );
-  }
-}
-
-// POST: Bulk action to add unrecognized queries to training
-export async function POST(req: Request) {
-  try {
-    const session = await getServerSession(authOptions);
-    
-    if (!session || !session.user.email) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+    } else {
+      console.log('Regular user access - checking ownership');
+      // Regular users can only access their own bots
+      bot = await db.bot.findFirst({
+        where: {
+          id: botId,
+          creator_id: user.userId
+        },
+        select: {
+          id: true,
+          bot_name: true,
+          model_type: true
+        }
+      });
     }
-
-    const user = await db.user.findUnique({
-      where: { email: session.user.email }
-    });
-
-    if (!user) {
-      return NextResponse.json(
-        { error: "User not found" },
-        { status: 404 }
-      );
-    }
-
-    // Parse request body
-    const body = await req.json();
-    
-    const { botId, queryIds, action } = body;
-
-    if (!botId || !queryIds || !Array.isArray(queryIds) || !action) {
-      return NextResponse.json(
-        { error: "Invalid request. botId, queryIds array, and action are required" },
-        { status: 400 }
-      );
-    }
-
-    // Check if bot exists and belongs to user
-    const bot = await db.bot.findFirst({
-      where: {
-        id: botId,
-        creator_id: user.userId
-      }
-    });
 
     if (!bot) {
       return NextResponse.json(
@@ -307,89 +131,239 @@ export async function POST(req: Request) {
       );
     }
 
-    // Get the unrecognized queries by ID
-    const queries = await db.unrecognizedQueries.findMany({
+    // Build where clause for date filtering
+    const dateFilter: any = {};
+    if (startDateTime) {
+      dateFilter.first_seen_at = {
+        ...(dateFilter.first_seen_at || {}),
+        gte: startDateTime
+      };
+    }
+    if (endDateTime) {
+      dateFilter.last_seen_at = {
+        ...(dateFilter.last_seen_at || {}),
+        lte: endDateTime
+      };
+    }
+
+    // Get unrecognized queries from the database
+    const unrecognizedQueries = await db.unrecognizedQueries.findMany({
       where: {
-        id: { in: queryIds },
         message: {
           conversation: {
             bot_id: botId
+          }
+        },
+        frequency: {
+          gte: minFrequency
+        },
+        ...dateFilter
+      },
+      orderBy: {
+        frequency: 'desc'
+      },
+      take: limit,
+      include: {
+        message: {
+          select: {
+            conversation_id: true
           }
         }
       }
     });
 
-    if (queries.length === 0) {
-      return NextResponse.json(
-        { error: "No valid queries found to process" },
-        { status: 404 }
-      );
-    }
-
-    // Process queries based on action
-    if (action === 'add_to_training') {
-      // Add queries to training data
-      const trainingEntries = queries.map(query => ({
-        bot_id: botId,
-        prompt_type: 'UNRECOGNIZED_QUERY',
-        prompt_content: query.query_text,
-        category: 'Auto-Added',
-        context: `Auto-added from unrecognized query (ID: ${query.id})`,
-        created_at: new Date(),
-        updated_at: new Date()
-      }));
-
-      // Create training entries
-      await db.bot_Training.createMany({
-        data: trainingEntries
-      });
-
-      // Update training coverage
-      const coverage = await db.training_Coverage.findFirst({
-        where: { bot_id: botId },
-        orderBy: { measure_at: 'desc' }
-      });
-
-      if (coverage) {
-        await db.training_Coverage.create({
-          data: {
-            bot_id: botId,
-            total_unique_queries: coverage.total_unique_queries,
-            covered_intents: coverage.covered_intents + queries.length,
-            measure_at: new Date()
+    // Get total count of unrecognized queries
+    const totalUnrecognizedQueries = await db.unrecognizedQueries.count({
+      where: {
+        message: {
+          conversation: {
+            bot_id: botId
           }
-        });
+        },
+        ...dateFilter
       }
+    });
+    
+    // Get total occurrences (sum of frequencies)
+    const totalOccurrences = await db.unrecognizedQueries.aggregate({
+      where: {
+        message: {
+          conversation: {
+            bot_id: botId
+          }
+        },
+        ...dateFilter
+      },
+      _sum: {
+        frequency: true
+      }
+    });
 
-      return NextResponse.json({
-        message: `${queries.length} queries added to training data`,
-        addedQueries: queries.map(q => q.query_text)
-      }, { status: 200 });
-    } 
-    else if (action === 'ignore') {
-      // Mark queries as ignored (delete them)
-      await db.unrecognizedQueries.deleteMany({
-        where: {
-          id: { in: queryIds }
-        }
-      });
+    // Get total number of user messages for comparison
+    const totalUserMessages = await db.conv_Messages.count({
+      where: {
+        conversation: {
+          bot_id: botId
+        },
+        sender_type: "USER",
+        ...(startDateTime || endDateTime ? {
+          sent_at: {
+            ...(startDateTime ? { gte: startDateTime } : {}),
+            ...(endDateTime ? { lte: endDateTime } : {})
+          }
+        } : {})
+      }
+    });
+    
+    // Calculate fallback rate
+    const fallbackRate = totalUserMessages > 0 
+      ? (totalOccurrences._sum.frequency || 0) / totalUserMessages * 100 
+      : 0;
 
-      return NextResponse.json({
-        message: `${queries.length} queries marked as ignored`,
-        ignoredQueries: queries.map(q => q.query_text)
-      }, { status: 200 });
-    } 
-    else {
-      return NextResponse.json(
-        { error: "Invalid action. Supported actions: 'add_to_training', 'ignore'" },
-        { status: 400 }
-      );
+    // Get word frequency data for word cloud
+    const wordFrequencyData = generateWordFrequencyData(unrecognizedQueries);
+    
+    // Group by top categories (simple implementation)
+    const categories = categorizeQueries(unrecognizedQueries);
+
+    // Create bot info object with creator details for admin
+    const botInfo = {
+      id: bot.id,
+      name: bot.bot_name
+    };
+    
+    // For admin view, add owner information if available
+    if (isAdmin && (bot as any).creator) {
+      const creator = (bot as any).creator;
+      (botInfo as any).owner = {
+        id: creator.userId,
+        email: creator.email,
+        name: creator.first_name && creator.last_name 
+          ? `${creator.first_name} ${creator.last_name}`
+          : undefined
+      };
     }
+
+    return NextResponse.json({
+      summary: {
+        totalUnrecognizedQueries,
+        totalOccurrences: totalOccurrences._sum.frequency || 0,
+        totalUserMessages,
+        fallbackRate,
+        uniqueQueriesCount: unrecognizedQueries.length
+      },
+      topQueries: unrecognizedQueries.map(query => ({
+        id: query.id,
+        text: query.query_text,
+        frequency: query.frequency,
+        firstSeen: query.first_seen_at,
+        lastSeen: query.last_seen_at,
+        conversationId: query.message.conversation_id
+      })),
+      wordCloudData: wordFrequencyData,
+      categories,
+      bot: botInfo
+    }, { status: 200 });
   } catch (error) {
-    console.error("Error processing unrecognized queries:", error);
+    console.error("Error fetching unrecognized queries data:", error);
     return NextResponse.json(
-      { error: "Error processing unrecognized queries" },
+      { error: "Error fetching unrecognized queries data" },
       { status: 500 }
     );
   }
+}
+
+// Helper function to generate word frequency data for word cloud
+function generateWordFrequencyData(unrecognizedQueries: any[]): Array<{ text: string, value: number }> {
+  // Combine all query texts
+  const allText = unrecognizedQueries.map(q => q.query_text).join(' ').toLowerCase();
+  
+  // Define common stop words to exclude
+  const stopWords = new Set([
+    'a', 'an', 'the', 'and', 'or', 'but', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
+    'in', 'on', 'at', 'to', 'for', 'with', 'by', 'about', 'against', 'between', 'into', 'through',
+    'during', 'before', 'after', 'above', 'below', 'from', 'up', 'down', 'of', 'off', 'over', 'under',
+    'again', 'further', 'then', 'once', 'here', 'there', 'when', 'where', 'why', 'how', 'all', 'any',
+    'both', 'each', 'few', 'more', 'most', 'other', 'some', 'such', 'no', 'nor', 'not', 'only', 'own',
+    'same', 'so', 'than', 'too', 'very', 'can', 'will', 'just', 'should', 'now'
+  ]);
+  
+  // Split into words and count occurrences
+  const wordCounts: Record<string, number> = {};
+  
+  // Extract words using regex
+  const words = allText.match(/\b(\w+)\b/g) || [];
+  
+  // Count words (excluding stop words and single characters)
+  words.forEach(word => {
+    if (!stopWords.has(word) && word.length > 1) {
+      wordCounts[word] = (wordCounts[word] || 0) + 1;
+    }
+  });
+  
+  // Convert to array and sort by frequency
+  const wordFrequencyArray = Object.entries(wordCounts)
+    .map(([text, value]) => ({ text, value }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 50); // Limit to top 50 words
+  
+  return wordFrequencyArray;
+}
+
+// Helper function to categorize queries into topics
+function categorizeQueries(unrecognizedQueries: any[]): Array<{ category: string, count: number, percentage: number }> {
+  // Define category keywords
+  const categories: Record<string, string[]> = {
+    'Product': ['product', 'feature', 'use', 'work', 'function'],
+    'Pricing': ['price', 'cost', 'payment', 'pay', 'subscription', 'plan', 'billing'],
+    'Technical': ['error', 'issue', 'problem', 'broken', 'bug', 'fix', 'trouble'],
+    'Account': ['account', 'login', 'password', 'sign', 'email', 'profile'],
+    'Integration': ['integrate', 'api', 'connect', 'integration', 'sync'],
+    'Other': []
+  };
+  
+  // Count queries in each category
+  const categoryCounts: Record<string, number> = {};
+  Object.keys(categories).forEach(category => {
+    categoryCounts[category] = 0;
+  });
+  
+  // Categorize each query
+  unrecognizedQueries.forEach(query => {
+    const text = query.query_text.toLowerCase();
+    let matched = false;
+    
+    for (const [category, keywords] of Object.entries(categories)) {
+      if (category === 'Other') continue; // Skip "Other" in the matching phase
+      
+      for (const keyword of keywords) {
+        if (text.includes(keyword)) {
+          categoryCounts[category] += query.frequency;
+          matched = true;
+          break;
+        }
+      }
+      
+      if (matched) break;
+    }
+    
+    // If no category matched, count as "Other"
+    if (!matched) {
+      categoryCounts['Other'] += query.frequency;
+    }
+  });
+  
+  // Calculate total
+  const total = Object.values(categoryCounts).reduce((sum, count) => sum + count, 0);
+  
+  // Format result
+  const result = Object.entries(categoryCounts)
+    .map(([category, count]) => ({
+      category,
+      count,
+      percentage: total > 0 ? (count / total) * 100 : 0
+    }))
+    .sort((a, b) => b.count - a.count);
+  
+  return result;
 }
