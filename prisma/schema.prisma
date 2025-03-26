@@ -380,3 +380,47 @@ model Client {
   apiUsage       String
   lastActive     DateTime
 }
+
+model Error {
+  id          Int      @id @default(autoincrement())
+  clientId    String
+  clientName  String
+  timestamp   DateTime
+  errorType   String
+  errorMessage String
+  modelId     String
+  modelName   String
+  severity    String
+  status      String
+}
+
+model Statistic {
+  id               Int      @id @default(autoincrement())
+  date             DateTime
+  totalInteractions Int
+  uniqueUsers      Int
+  avgResponseTime  Float
+  errorRate        Float
+}
+
+model Dataset {
+  id          Int      @id @default(autoincrement())
+  clientId    String
+  clientName  String
+  name        String
+  status      String
+  fileCount   Int
+  totalSize   String
+  submittedAt DateTime
+  description String
+}
+
+model Model {
+  id          Int      @id @default(autoincrement())
+  name        String
+  provider    String
+  version     String
+  type        String
+  status      String
+  lastUpdated DateTime
+}

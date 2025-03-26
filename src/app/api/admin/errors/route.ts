@@ -1,0 +1,14 @@
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
+
+export async function GET() {
+  try {
+    const errors = await db.error.findMany();
+    return NextResponse.json({ errors }, { status: 200 });
+  } catch (error) {
+    console.error('Error fetching errors:', error);
+    return NextResponse.json({ message: 'Internal Server Error' }, { status: 500 });
+  }
+}

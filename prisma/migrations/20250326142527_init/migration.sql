@@ -379,6 +379,62 @@ CREATE TABLE "Client" (
     CONSTRAINT "Client_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "Error" (
+    "id" SERIAL NOT NULL,
+    "clientId" TEXT NOT NULL,
+    "clientName" TEXT NOT NULL,
+    "timestamp" TIMESTAMP(3) NOT NULL,
+    "errorType" TEXT NOT NULL,
+    "errorMessage" TEXT NOT NULL,
+    "modelId" TEXT NOT NULL,
+    "modelName" TEXT NOT NULL,
+    "severity" TEXT NOT NULL,
+    "status" TEXT NOT NULL,
+
+    CONSTRAINT "Error_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Statistic" (
+    "id" SERIAL NOT NULL,
+    "date" TIMESTAMP(3) NOT NULL,
+    "totalInteractions" INTEGER NOT NULL,
+    "uniqueUsers" INTEGER NOT NULL,
+    "avgResponseTime" DOUBLE PRECISION NOT NULL,
+    "errorRate" DOUBLE PRECISION NOT NULL,
+
+    CONSTRAINT "Statistic_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Dataset" (
+    "id" SERIAL NOT NULL,
+    "clientId" TEXT NOT NULL,
+    "clientName" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "status" TEXT NOT NULL,
+    "fileCount" INTEGER NOT NULL,
+    "totalSize" TEXT NOT NULL,
+    "submittedAt" TIMESTAMP(3) NOT NULL,
+    "description" TEXT NOT NULL,
+
+    CONSTRAINT "Dataset_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Model" (
+    "id" SERIAL NOT NULL,
+    "name" TEXT NOT NULL,
+    "provider" TEXT NOT NULL,
+    "version" TEXT NOT NULL,
+    "type" TEXT NOT NULL,
+    "status" TEXT NOT NULL,
+    "lastUpdated" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Model_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "UserOnboarding_userId_key" ON "UserOnboarding"("userId");
 
