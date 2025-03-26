@@ -286,6 +286,32 @@ CREATE TABLE "Payment" (
     CONSTRAINT "Payment_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "Ticket" (
+    "id" SERIAL NOT NULL,
+    "clientName" TEXT NOT NULL,
+    "issue" TEXT NOT NULL,
+    "status" TEXT NOT NULL,
+    "assignedTo" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "responseTime" DOUBLE PRECISION,
+
+    CONSTRAINT "Ticket_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "DebugSession" (
+    "id" SERIAL NOT NULL,
+    "clientName" TEXT NOT NULL,
+    "chatbotId" TEXT NOT NULL,
+    "startedAt" TIMESTAMP(3) NOT NULL,
+    "status" TEXT NOT NULL,
+    "messages" JSONB NOT NULL,
+
+    CONSTRAINT "DebugSession_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "UserOnboarding_userId_key" ON "UserOnboarding"("userId");
 

@@ -308,3 +308,23 @@ model Payment {
   date      DateTime
   method    String   // e.g., "credit_card", "paypal"
 }
+
+model Ticket {
+  id          Int      @id @default(autoincrement())
+  clientName  String
+  issue       String
+  status      String
+  assignedTo  String?  // Optional field
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  responseTime Float?
+}
+
+model DebugSession {
+  id          Int      @id @default(autoincrement())
+  clientName  String
+  chatbotId   String
+  startedAt   DateTime
+  status      String
+  messages    Json
+}

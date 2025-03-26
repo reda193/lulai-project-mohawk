@@ -1,5 +1,5 @@
 'use client';
-import { FC, useState } from 'react';
+import { FC, useEffect, useState } from 'react';
 import { MoreHorizontalIcon, AlertCircleIcon, MessageSquareIcon, BugIcon, UserIcon, SendIcon } from 'lucide-react';
 
 // Types
@@ -247,63 +247,28 @@ interface SupportManagementProps {
   };
 }
 
-const SupportManagement: FC<SupportManagementProps> = ({ initialData = {
-  tickets: [
-    {
-      id: '1',
-      clientName: 'Client A',
-      issue: 'Chatbot not responding',
-      status: 'open',
-      createdAt: '2023-10-01T10:00:00Z',
-      responseTime: 2,
-    },
-    {
-      id: '2',
-      clientName: 'Client B',
-      issue: 'Incorrect responses from chatbot',
-      status: 'in_progress',
-      assignedTo: 'John Doe',
-      createdAt: '2023-10-02T12:00:00Z',
-      updatedAt: '2023-10-02T14:00:00Z',
-      responseTime: 1.5,
-    },
-    {
-      id: '3',
-      clientName: 'Client C',
-      issue: 'Integration failure with Shopify',
-      status: 'resolved',
-      assignedTo: 'Jane Smith',
-      createdAt: '2023-10-03T09:00:00Z',
-      updatedAt: '2023-10-03T11:00:00Z',
-      responseTime: 3,
-    },
-  ],
-  debugSessions: [
-    {
-      id: '1',
-      clientName: 'Client A',
-      chatbotId: 'chatbot_123',
-      startedAt: '2023-10-01T10:00:00Z',
-      status: 'ended',
-      messages: [
-        {
-          id: '1',
-          sender: 'user',
-          text: 'Hello, my chatbot is not working.',
-          timestamp: '2023-10-01T10:05:00Z',
-        },
-        {
-          id: '2',
-          sender: 'bot',
-          text: 'Hi! How can I assist you today?',
-          timestamp: '2023-10-01T10:06:00Z',
-        },
-      ],
-    },
-  ],
-} }) => {
-  const [tickets, setTickets] = useState<SupportTicket[]>(initialData.tickets);
-  const [debugSessions, setDebugSessions] = useState<DebugSession[]>(initialData.debugSessions);
+const SupportManagement: FC = () => { 
+  const [tickets, setTickets] = useState<SupportTicket[]>([]);
+  const [debugSessions, setDebugSessions] = useState<DebugSession[]>([]);
+  
+
+  useEffect(() => {
+    const fetchTickets = async () => {
+      const response = await fetch('/api/admin/tickets');
+      const { tickets } = await response.json();
+      setTickets(tickets);
+    };
+
+    const fetchDebugSessions = async () => {
+      const response = await fetch('/api/admin/debugSessions');
+      const { debugSessions } = await response.json();
+      setDebugSessions(debugSessions);
+    };
+
+    
+   fetchTickets();
+   fetchDebugSessions();
+ }, [tickets, debugSessions]);
 
   const handleAssignTicket = (ticketId: string, assignee: string) => {
     setTickets(tickets.map(ticket =>

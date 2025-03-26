@@ -627,4 +627,81 @@ main2()
     .finally(async () => {
       await prisma.$disconnect();
     });
-  
+   
+    
+    async function main4() {
+        // Seed tickets
+       
+    
+      const tickets = await prisma.ticket.createMany({
+        data: [
+          {
+          
+          clientName: 'Client A',
+          issue: 'Chatbot not responding',
+          status: 'open',
+          createdAt: '2023-10-01T10:00:00Z',
+          responseTime: 2,
+        },
+        {
+          
+          clientName: 'Client B',
+          issue: 'Incorrect responses from chatbot',
+          status: 'in_progress',
+          assignedTo: 'John Doe',
+          createdAt: '2023-10-02T12:00:00Z',
+          updatedAt: '2023-10-02T14:00:00Z',
+          responseTime: 1.5,
+        },
+        {
+          
+          clientName: 'Client C',
+          issue: 'Integration failure with Shopify',
+          status: 'resolved',
+          assignedTo: 'Jane Smith',
+          createdAt: '2023-10-03T09:00:00Z',
+          updatedAt: '2023-10-03T11:00:00Z',
+          responseTime: 3,
+        },
+        ],
+        });
+      
+        await prisma.debugSession.createMany({
+          skipDuplicates: true, // Skip 
+          data: [
+            {
+          
+          clientName: 'Client A',
+          chatbotId: 'chatbot_123',
+          startedAt: '2023-10-01T10:00:00Z',
+          status: 'ended',
+          messages: [
+            {
+              
+              sender: 'user',
+              text: 'Hello, my chatbot is not working.',
+              timestamp: '2023-10-01T10:05:00Z',
+            },
+            {
+              
+              sender: 'bot',
+              text: 'Hi! How can I assist you today?',
+              timestamp: '2023-10-01T10:06:00Z',
+            },
+          ],
+        },
+          ],
+        });
+      
+            console.log('Mock data seeded successfully!');
+      }
+      
+      main4()
+        .catch((e) => {
+          console.error('Error seeding mock data:', e);
+          process.exit(1);
+        })
+        .finally(async () => {
+          await prisma.$disconnect();
+        });
+    
