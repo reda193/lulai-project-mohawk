@@ -1,5 +1,5 @@
 'use client';
-import { FC, useState } from 'react';
+import { FC, useEffect, useState } from 'react';
 import { MoreHorizontalIcon, LockIcon, ShieldIcon, AlertCircleIcon, TrashIcon, CheckIcon } from 'lucide-react';
 
 // Types
@@ -152,69 +152,29 @@ interface SecurityManagementProps {
     requests: ComplianceRequest[];
   };
 }
+const SecurityManagement: FC = () => { 
+  const [logs, setLogs] = useState<AccessLog[]>([]);
+  const [requests, setRequests] = useState<ComplianceRequest[]>([]);
+  
 
-const SecurityManagement: FC<SecurityManagementProps> = ({ initialData = {
-  logs: [
-    {
-      id: '1',
-      userId: 'user1',
-      username: 'john_doe',
-      ipAddress: '192.168.1.1',
-      timestamp: '2023-10-01T12:34:56Z',
-      activity: 'login',
-      location: 'New York, USA',
-      isSuspicious: false,
-    },
-    {
-      id: '2',
-      userId: 'user2',
-      username: 'jane_smith',
-      ipAddress: '203.0.113.45',
-      timestamp: '2023-10-02T14:22:10Z',
-      activity: 'failed_login',
-      location: 'London, UK',
-      isSuspicious: true,
-    },
-    {
-      id: '3',
-      userId: 'user3',
-      username: 'alice_wonder',
-      ipAddress: '198.51.100.23',
-      timestamp: '2023-10-03T09:15:30Z',
-      activity: 'logout',
-      isSuspicious: false,
-    },
-  ],
-  requests: [
-    {
-      id: '1',
-      userId: 'user1',
-      username: 'john_doe',
-      requestType: 'data_access',
-      status: 'pending',
-      requestedAt: '2023-10-01T10:00:00Z',
-    },
-    {
-      id: '2',
-      userId: 'user2',
-      username: 'jane_smith',
-      requestType: 'data_deletion',
-      status: 'completed',
-      requestedAt: '2023-10-02T11:30:00Z',
-      completedAt: '2023-10-02T12:00:00Z',
-    },
-    {
-      id: '3',
-      userId: 'user3',
-      username: 'alice_wonder',
-      requestType: 'data_access',
-      status: 'rejected',
-      requestedAt: '2023-10-03T09:00:00Z',
-    },
-  ],
-} }) => {
-  const [logs, setLogs] = useState<AccessLog[]>(initialData.logs);
-  const [requests, setRequests] = useState<ComplianceRequest[]>(initialData.requests);
+  useEffect(() => {
+    const fetchLogs = async () => {
+      const response = await fetch('/api/admin/logs');
+      const { logs } = await response.json();
+      setLogs(logs);
+    };
+
+    const fetchRequests = async () => {
+      const response = await fetch('/api/admin/requests');
+      const { requests } = await response.json();
+      setRequests(requests);
+    };
+
+    
+   fetchLogs();
+   fetchRequests();
+ }, [logs, requests]);
+
 
   const handleEnforce2FA = (userId: string) => {
     // In a real implementation, this would make an API call to enforce 2FA

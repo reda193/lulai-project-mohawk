@@ -312,6 +312,33 @@ CREATE TABLE "DebugSession" (
     CONSTRAINT "DebugSession_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "Log" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "username" TEXT NOT NULL,
+    "ipAddress" TEXT NOT NULL,
+    "timestamp" TIMESTAMP(3) NOT NULL,
+    "activity" TEXT NOT NULL,
+    "location" TEXT,
+    "isSuspicious" BOOLEAN NOT NULL,
+
+    CONSTRAINT "Log_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Request" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "username" TEXT NOT NULL,
+    "requestType" TEXT NOT NULL,
+    "status" TEXT NOT NULL,
+    "requestedAt" TIMESTAMP(3) NOT NULL,
+    "completedAt" TIMESTAMP(3),
+
+    CONSTRAINT "Request_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "UserOnboarding_userId_key" ON "UserOnboarding"("userId");
 

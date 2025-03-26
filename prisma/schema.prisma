@@ -328,3 +328,24 @@ model DebugSession {
   status      String
   messages    Json
 }
+
+model Log {
+  id          String   @id @default(cuid())
+  userId      String
+  username    String
+  ipAddress   String
+  timestamp   DateTime
+  activity    String
+  location    String?
+  isSuspicious Boolean
+}
+
+model Request {
+  id           String   @id @default(uuid())
+  userId       String
+  username     String
+  requestType  String
+  status       String
+  requestedAt  DateTime
+  completedAt  DateTime?
+}
