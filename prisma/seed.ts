@@ -710,7 +710,7 @@ main2()
           const logs = await prisma.log.createMany({
             data: [
               {
-              id: '1',
+              
               userId: 'user1',
               username: 'john_doe',
               ipAddress: '192.168.1.1',
@@ -720,7 +720,7 @@ main2()
               isSuspicious: false,
             },
             {
-              id: '2',
+              
               userId: 'user2',
               username: 'jane_smith',
               ipAddress: '203.0.113.45',
@@ -730,7 +730,7 @@ main2()
               isSuspicious: true,
             },
             {
-              id: '3',
+              
               userId: 'user3',
               username: 'alice_wonder',
               ipAddress: '198.51.100.23',
@@ -745,7 +745,7 @@ main2()
             const requests = await prisma.request.createMany({
             data: [
               {
-              id: '1',
+              
               userId: 'user1',
               username: 'john_doe',
               requestType: 'data_access',
@@ -753,7 +753,7 @@ main2()
               requestedAt: '2023-10-01T10:00:00Z',
             },
             {
-              id: '2',
+              
               userId: 'user2',
               username: 'jane_smith',
               requestType: 'data_deletion',
@@ -762,7 +762,7 @@ main2()
               completedAt: '2023-10-02T12:00:00Z',
             },
             {
-              id: '3',
+              
               userId: 'user3',
               username: 'alice_wonder',
               requestType: 'data_access',
@@ -785,4 +785,76 @@ main2()
               await prisma.$disconnect();
             });
           
+            async function main6() {
+   
+
+              const configs = await prisma.config.createMany({
+                data: [
+                  {
+                  
+                  clientName: 'Client A',
+                  defaultBehavior: {
+                    responseDelay: 2,
+                    tone: 'friendly',
+                    language: 'en',
+                  },
+                  branding: {
+                    primaryColor: '#3b82f6',
+                    secondaryColor: '#10b981',
+                  },
+                },
+                {
+                  
+                  clientName: 'Client B',
+                  defaultBehavior: {
+                    responseDelay: 5,
+                    tone: 'formal',
+                    language: 'es',
+                  },
+                  branding: {
+                    primaryColor: '#ef4444',
+                    secondaryColor: '#f59e0b',
+                  },
+                },
+            
+            
+                ],
+                });
+              
+                const overrides = await prisma.override.createMany({
+                data: [
+                  {
+                  
+                  action: 'restart',
+                  target: 'all',
+                  status: 'completed',
+                  initiatedAt: '2023-10-01T10:00:00Z',
+                  completedAt: '2023-10-01T10:02:00Z',
+                },
+                {
+                  
+                  action: 'disable',
+                  target: 'specific',
+                  clientIds: ['client1', 'client2'],
+                  status: 'pending',
+                  initiatedAt: '2023-10-02T12:00:00Z',
+                },
+            
+            
+                ],
+                });
+            
+                    console.log('Mock data seeded successfully!');
+              }
+              
+              main6()
+                .catch((e) => {
+                  console.error('Error seeding mock data:', e);
+                  process.exit(1);
+                })
+                .finally(async () => {
+                  await prisma.$disconnect();
+                });
+              
+            
         

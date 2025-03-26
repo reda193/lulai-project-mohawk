@@ -349,3 +349,20 @@ model Request {
   requestedAt  DateTime
   completedAt  DateTime?
 }
+
+model config {
+  id             String   @id @default(cuid())
+  clientName     String
+  defaultBehavior Json
+  branding       Json
+}
+
+model Override {
+  id          String   @id @default(cuid())
+  action      String
+  target      String
+  clientIds   String[] @default([])
+  status      String
+  initiatedAt DateTime
+  completedAt DateTime?
+}

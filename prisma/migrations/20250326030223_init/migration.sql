@@ -339,6 +339,29 @@ CREATE TABLE "Request" (
     CONSTRAINT "Request_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "config" (
+    "id" TEXT NOT NULL,
+    "clientName" TEXT NOT NULL,
+    "defaultBehavior" JSONB NOT NULL,
+    "branding" JSONB NOT NULL,
+
+    CONSTRAINT "config_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Override" (
+    "id" TEXT NOT NULL,
+    "action" TEXT NOT NULL,
+    "target" TEXT NOT NULL,
+    "clientIds" TEXT[] DEFAULT ARRAY[]::TEXT[],
+    "status" TEXT NOT NULL,
+    "initiatedAt" TIMESTAMP(3) NOT NULL,
+    "completedAt" TIMESTAMP(3),
+
+    CONSTRAINT "Override_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "UserOnboarding_userId_key" ON "UserOnboarding"("userId");
 
