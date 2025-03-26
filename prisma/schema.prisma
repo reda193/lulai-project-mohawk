@@ -424,3 +424,22 @@ model Model {
   status      String
   lastUpdated DateTime
 }
+
+model Integration {
+  id           Int      @id @default(autoincrement())
+  platform     String
+  clientName   String
+  status       String
+  lastChecked  DateTime
+  errorMessage String?  // Optional field for error messages
+}
+
+model ApiKey {
+  id          Int      @id @default(autoincrement())
+  clientName  String
+  apiKey      String   @unique
+  createdAt   DateTime @default(now())
+  status      String
+  usageLimit  Int
+  usageCount  Int
+}

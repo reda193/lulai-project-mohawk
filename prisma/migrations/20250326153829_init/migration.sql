@@ -435,6 +435,31 @@ CREATE TABLE "Model" (
     CONSTRAINT "Model_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "Integration" (
+    "id" SERIAL NOT NULL,
+    "platform" TEXT NOT NULL,
+    "clientName" TEXT NOT NULL,
+    "status" TEXT NOT NULL,
+    "lastChecked" TIMESTAMP(3) NOT NULL,
+    "errorMessage" TEXT,
+
+    CONSTRAINT "Integration_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "ApiKey" (
+    "id" SERIAL NOT NULL,
+    "clientName" TEXT NOT NULL,
+    "apiKey" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "status" TEXT NOT NULL,
+    "usageLimit" INTEGER NOT NULL,
+    "usageCount" INTEGER NOT NULL,
+
+    CONSTRAINT "ApiKey_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "UserOnboarding_userId_key" ON "UserOnboarding"("userId");
 
@@ -488,6 +513,9 @@ CREATE INDEX "UnrecognizedQueries_message_id_idx" ON "UnrecognizedQueries"("mess
 
 -- CreateIndex
 CREATE INDEX "Csat_conversation_id_idx" ON "Csat"("conversation_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "ApiKey_apiKey_key" ON "ApiKey"("apiKey");
 
 -- AddForeignKey
 ALTER TABLE "UserOnboarding" ADD CONSTRAINT "UserOnboarding_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
