@@ -366,3 +366,17 @@ model Override {
   initiatedAt DateTime
   completedAt DateTime?
 }
+
+model Client {
+  id             String   @id @default(cuid())
+  name           String
+  industry       String
+  size           String
+  subscriptionPlan String
+  status         String
+  contactEmail   String
+  contactPhone   String
+  contactPerson  String
+  apiUsage       String
+  lastActive     DateTime
+}

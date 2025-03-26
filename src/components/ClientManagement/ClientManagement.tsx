@@ -1,5 +1,5 @@
 'use client';
-import React, { useState } from 'react';
+import React, { FC, useEffect, useState } from 'react';
 import { Users, Edit, MoreHorizontal, Filter, ArrowUpDown, UserPlus, UserMinus, Lock, ArrowUp, ArrowDown, Ban, Activity, X } from 'lucide-react';
 
 // Define proper types for all data structures
@@ -45,71 +45,20 @@ interface FilterState {
   status: string;
 }
 
-const ClientManagement = () => {
-  // Enhanced client data with more fields
-  const [clients, setClients] = useState<Client[]>([
-    {
-      id: '1',
-      name: 'TechCorp Solutions',
-      industry: 'Technology',
-      size: 'Large (500-1000)',
-      subscriptionPlan: 'Enterprise',
-      status: 'Active',
-      contactEmail: 'admin@techcorp.com',
-      contactPhone: '(555) 123-4567',
-      contactPerson: 'John Smith',
-      apiUsage: '85%',
-      lastActive: '2024-03-05',
-      users: [
-        { id: 'u1', name: 'Sarah Johnson', email: 'sarah@techcorp.com', role: 'Admin' },
-        { id: 'u2', name: 'Mike Williams', email: 'mike@techcorp.com', role: 'User' }
-      ],
-      activityLogs: [
-        { id: 'a1', type: 'API Call', description: 'Processed 2,500 chatbot interactions', timestamp: '2024-03-05 15:45:23' },
-        { id: 'a2', type: 'User Login', description: 'Admin login from 192.168.1.105', timestamp: '2024-03-05 09:10:47' }
-      ]
-    },
-    {
-      id: '2',
-      name: 'HealthCare Innovations',
-      industry: 'Healthcare',
-      size: 'Medium (100-500)',
-      subscriptionPlan: 'Professional',
-      status: 'Active',
-      contactEmail: 'support@healthcare.com',
-      contactPhone: '(555) 987-6543',
-      contactPerson: 'Emily Rodriguez',
-      apiUsage: '62%',
-      lastActive: '2024-03-04',
-      users: [
-        { id: 'u3', name: 'Alex Chen', email: 'alex@healthcare.com', role: 'Admin' },
-        { id: 'u4', name: 'Jessica Lee', email: 'jessica@healthcare.com', role: 'User' }
-      ],
-      activityLogs: [
-        { id: 'a3', type: 'API Call', description: 'Processed 1,200 chatbot interactions', timestamp: '2024-03-04 14:22:17' },
-        { id: 'a4', type: 'Subscription', description: 'Changed plan from Basic to Professional', timestamp: '2024-02-28 11:30:59' }
-      ]
-    },
-    {
-      id: '3',
-      name: 'FinServe Global',
-      industry: 'Finance',
-      size: 'Small (10-100)',
-      subscriptionPlan: 'Basic',
-      status: 'Suspended',
-      contactEmail: 'info@finserve.com',
-      contactPhone: '(555) 456-7890',
-      contactPerson: 'Robert Taylor',
-      apiUsage: '0%',
-      lastActive: '2024-02-20',
-      users: [
-        { id: 'u5', name: 'Daniel Brown', email: 'daniel@finserve.com', role: 'Admin' }
-      ],
-      activityLogs: [
-        { id: 'a5', type: 'Account', description: 'Account suspended due to payment failure', timestamp: '2024-02-21 09:15:33' }
-      ]
-    }
-  ]);
+const ClientManagement: FC = () => { 
+  const [clients, setClients] = useState<Client[]>([]);  
+
+  useEffect(() => {
+    const fetchClients = async () => {
+      const response = await fetch('/api/admin/clients');
+      const { clients } = await response.json();
+      setClients(clients);
+    };
+    
+   fetchClients();
+
+ }, [clients]);
+
 
   // Filters state
   const [filters, setFilters] = useState<FilterState>({

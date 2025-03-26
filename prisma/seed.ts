@@ -856,5 +856,63 @@ main2()
                   await prisma.$disconnect();
                 });
               
-            
+                async function main7() {
+   
+
+                  const clients = await prisma.client.createMany({
+                    data: [
+                      {
+                      
+                      name: 'TechCorp Solutions',
+                      industry: 'Technology',
+                      size: 'Large (500-1000)',
+                      subscriptionPlan: 'Enterprise',
+                      status: 'Active',
+                      contactEmail: 'admin@techcorp.com',
+                      contactPhone: '(555) 123-4567',
+                      contactPerson: 'John Smith',
+                      apiUsage: '85%',
+                      lastActive:  new Date('2024-03-05'),
+                    },
+                    {
+                      
+                      name: 'HealthCare Innovations',
+                      industry: 'Healthcare',
+                      size: 'Medium (100-500)',
+                      subscriptionPlan: 'Professional',
+                      status: 'Active',
+                      contactEmail: 'support@healthcare.com',
+                      contactPhone: '(555) 987-6543',
+                      contactPerson: 'Emily Rodriguez',
+                      apiUsage: '62%',
+                      lastActive: new Date('2024-03-04'),
+                    },
+                    {
+                      
+                      name: 'FinServe Global',
+                      industry: 'Finance',
+                      size: 'Small (10-100)',
+                      subscriptionPlan: 'Basic',
+                      status: 'Suspended',
+                      contactEmail: 'info@finserve.com',
+                      contactPhone: '(555) 456-7890',
+                      contactPerson: 'Robert Taylor',
+                      apiUsage: '0%',
+                      lastActive: new Date('2024-02-20'),
+                    }
+                    ],
+                    });
+                  
+                    
+                        console.log('Mock data seeded successfully!');
+                  }
+                  
+                  main7()
+                    .catch((e) => {
+                      console.error('Error seeding mock data:', e);
+                      process.exit(1);
+                    })
+                    .finally(async () => {
+                      await prisma.$disconnect();
+                    });
         

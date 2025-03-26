@@ -362,6 +362,23 @@ CREATE TABLE "Override" (
     CONSTRAINT "Override_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "Client" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "industry" TEXT NOT NULL,
+    "size" TEXT NOT NULL,
+    "subscriptionPlan" TEXT NOT NULL,
+    "status" TEXT NOT NULL,
+    "contactEmail" TEXT NOT NULL,
+    "contactPhone" TEXT NOT NULL,
+    "contactPerson" TEXT NOT NULL,
+    "apiUsage" TEXT NOT NULL,
+    "lastActive" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Client_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "UserOnboarding_userId_key" ON "UserOnboarding"("userId");
 
