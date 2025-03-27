@@ -1,5 +1,5 @@
 'use client';
-import { FC, useState } from 'react';
+import { FC, useEffect, useState } from 'react';
 import { MoreHorizontalIcon, LockIcon, ShieldIcon, AlertCircleIcon, TrashIcon, CheckIcon } from 'lucide-react';
 
 // Types
@@ -146,98 +146,118 @@ const ComplianceDashboard: FC<ComplianceDashboardProps> = ({ requests, onComplet
 };
 
 // Main Component
-interface SecurityManagementProps {
-  initialData?: {
-    logs: AccessLog[];
-    requests: ComplianceRequest[];
-  };
-}
+const SecurityManagement: FC = () => { 
+  const [logs, setLogs] = useState<AccessLog[]>([]);
+  const [requests, setRequests] = useState<ComplianceRequest[]>([]);
+  const [loading, setLoading] = useState(true);
 
-const SecurityManagement: FC<SecurityManagementProps> = ({ initialData = {
-  logs: [
-    {
-      id: '1',
-      userId: 'user1',
-      username: 'john_doe',
-      ipAddress: '192.168.1.1',
-      timestamp: '2023-10-01T12:34:56Z',
-      activity: 'login',
-      location: 'New York, USA',
-      isSuspicious: false,
-    },
-    {
-      id: '2',
-      userId: 'user2',
-      username: 'jane_smith',
-      ipAddress: '203.0.113.45',
-      timestamp: '2023-10-02T14:22:10Z',
-      activity: 'failed_login',
-      location: 'London, UK',
-      isSuspicious: true,
-    },
-    {
-      id: '3',
-      userId: 'user3',
-      username: 'alice_wonder',
-      ipAddress: '198.51.100.23',
-      timestamp: '2023-10-03T09:15:30Z',
-      activity: 'logout',
-      isSuspicious: false,
-    },
-  ],
-  requests: [
-    {
-      id: '1',
-      userId: 'user1',
-      username: 'john_doe',
-      requestType: 'data_access',
-      status: 'pending',
-      requestedAt: '2023-10-01T10:00:00Z',
-    },
-    {
-      id: '2',
-      userId: 'user2',
-      username: 'jane_smith',
-      requestType: 'data_deletion',
-      status: 'completed',
-      requestedAt: '2023-10-02T11:30:00Z',
-      completedAt: '2023-10-02T12:00:00Z',
-    },
-    {
-      id: '3',
-      userId: 'user3',
-      username: 'alice_wonder',
-      requestType: 'data_access',
-      status: 'rejected',
-      requestedAt: '2023-10-03T09:00:00Z',
-    },
-  ],
-} }) => {
-  const [logs, setLogs] = useState<AccessLog[]>(initialData.logs);
-  const [requests, setRequests] = useState<ComplianceRequest[]>(initialData.requests);
+  // Fetch data only once when component mounts
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        
+        // Fetch logs
+        const logsResponse = await fetch('/api/admin/logs');
+        const logsData = await logsResponse.json();
+        
+        // Fetch requests
+        const requestsResponse = await fetch('/api/admin/requests');
+        const requestsData = await requestsResponse.json();
+        
+        // Update state with fetched data
+        setLogs(logsData.logs || []);
+        setRequests(requestsData.requests || []);
+      } catch (error) {
+        console.error('Error fetching security data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchData();
+  }, []); // Empty dependency array ensures this only runs once
 
-  const handleEnforce2FA = (userId: string) => {
-    // In a real implementation, this would make an API call to enforce 2FA
-    alert(`2FA enforced for user ${userId}`);
+  const handleEnforce2FA = async (userId: string) => {
+    try {
+      // API call to enforce 2FA
+      await fetch(`/api/admin/users/${userId}/enforce2fa`, {
+        method: 'POST',
+      });
+      
+      alert(`2FA enforced for user ${userId}`);
+    } catch (error) {
+      console.error('Error enforcing 2FA:', error);
+    }
   };
 
-  const handleMarkAsResolved = (logId: string) => {
-    setLogs(logs.map(log =>
-      log.id === logId ? { ...log, isSuspicious: false } : log
-    ));
+  const handleMarkAsResolved = async (logId: string) => {
+    try {
+      // Optimistic UI update
+      setLogs(prevLogs =>
+        prevLogs.map(log =>
+          log.id === logId ? { ...log, isSuspicious: false } : log
+        )
+      );
+      
+      // API call to mark as resolved
+      await fetch(`/api/admin/logs/${logId}/resolve`, {
+        method: 'PATCH',
+      });
+    } catch (error) {
+      console.error('Error marking log as resolved:', error);
+      // Revert optimistic update on error
+      // You might want to re-fetch data here
+    }
   };
 
-  const handleCompleteRequest = (requestId: string) => {
-    setRequests(requests.map(request =>
-      request.id === requestId ? { ...request, status: 'completed', completedAt: new Date().toISOString() } : request
-    ));
+  const handleCompleteRequest = async (requestId: string) => {
+    try {
+      const currentTime = new Date().toISOString();
+      
+      // Optimistic UI update
+      setRequests(prevRequests =>
+        prevRequests.map(request =>
+          request.id === requestId 
+            ? { ...request, status: 'completed', completedAt: currentTime } 
+            : request
+        )
+      );
+      
+      // API call to complete request
+      await fetch(`/api/admin/requests/${requestId}/complete`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ completedAt: currentTime })
+      });
+    } catch (error) {
+      console.error('Error completing request:', error);
+      // Handle error appropriately
+    }
   };
 
-  const handleRejectRequest = (requestId: string) => {
-    setRequests(requests.map(request =>
-      request.id === requestId ? { ...request, status: 'rejected' } : request
-    ));
+  const handleRejectRequest = async (requestId: string) => {
+    try {
+      // Optimistic UI update
+      setRequests(prevRequests =>
+        prevRequests.map(request =>
+          request.id === requestId ? { ...request, status: 'rejected' } : request
+        )
+      );
+      
+      // API call to reject request
+      await fetch(`/api/admin/requests/${requestId}/reject`, {
+        method: 'PATCH',
+      });
+    } catch (error) {
+      console.error('Error rejecting request:', error);
+      // Handle error appropriately
+    }
   };
+
+  if (loading) {
+    return <div className="p-6">Loading security management data...</div>;
+  }
 
   return (
     <div className="p-6">

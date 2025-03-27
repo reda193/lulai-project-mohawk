@@ -1,6 +1,7 @@
 'use client';
-import { FC, useState } from 'react';
+import { FC, useState, useEffect  } from 'react';
 import { MoreHorizontalIcon, ToggleLeftIcon, ToggleRightIcon, SettingsIcon, BoxIcon, PlayIcon } from 'lucide-react';
+import { custom } from 'zod';
 
 // Types
 interface FeatureFlag {
@@ -167,27 +168,27 @@ interface FeatureManagementProps {
   };
 }
 
-const FeatureManagement: FC<FeatureManagementProps> = ({ initialData = { flags: [
-  {
-    id: '1',
-    featureName: 'Sample Feature Flag',
-    description: 'This is a sample feature flag.',
-    enabledFor: ['all'],
-    isActive: true,
-  },
-],
-features: [
-  {
-    id: '1',
-    clientId: 'client1',
-    featureName: 'Sample Custom Feature',
-    description: 'This is a sample custom feature.',
-    status: 'draft',
-  },
-] } }) => {
-  const [flags, setFlags] = useState<FeatureFlag[]>(initialData.flags);
-  const [features, setFeatures] = useState<CustomFeature[]>(initialData.features);
-
+const FeatureManagement: FC = () => { 
+  const [flags, setFlags] = useState<FeatureFlag[]>([]);
+  const [features, setFeatures] = useState<CustomFeature[]>([]);
+  
+  useEffect(() => {
+    const fetchFlags = async () => {
+      const response = await fetch('/api/admin/featureflags');
+      const { featureFlags } = await response.json();
+      setFlags(featureFlags);
+    };
+    
+    const fetchFeatures = async () => {
+      const response = await fetch('/api/admin/customfeatures');
+      const { customFeatures } = await response.json();
+      setFeatures(customFeatures);
+    };
+    
+    fetchFlags();
+    fetchFeatures();
+  }, []); // Empty dependency array means this only runs once after initial render
+  
   const handleToggleFlag = (flagId: string, isActive: boolean) => {
     setFlags(flags.map(flag =>
       flag.id === flagId ? { ...flag, isActive } : flag

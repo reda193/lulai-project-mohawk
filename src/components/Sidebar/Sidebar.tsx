@@ -16,7 +16,9 @@ import {
   StarIcon,
   ServerIcon,
   BriefcaseIcon,
-  MessagesSquareIcon
+  MessagesSquareIcon,
+  NetworkIcon,
+  BrainIcon
 } from 'lucide-react';
 import SidebarItem from './SidebarItem';
 

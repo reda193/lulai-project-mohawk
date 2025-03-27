@@ -30,6 +30,24 @@ async function main() {
   await prisma.account.deleteMany({});
   await prisma.user.deleteMany({});
   
+  // Also clean up all the additional models
+  await prisma.payment.deleteMany({});
+  await prisma.invoice.deleteMany({});
+  await prisma.debugSession.deleteMany({});
+  await prisma.log.deleteMany({});
+  await prisma.request.deleteMany({});
+  await prisma.config.deleteMany({});
+  await prisma.override.deleteMany({});
+  await prisma.client.deleteMany({});
+  await prisma.error.deleteMany({});
+  await prisma.statistic.deleteMany({});
+  await prisma.dataset.deleteMany({});
+  await prisma.model.deleteMany({});
+  await prisma.integration.deleteMany({});
+  await prisma.apiKey.deleteMany({});
+  await prisma.featureFlag.deleteMany({});
+  await prisma.customFeature.deleteMany({});
+  
   // Hash the password
   const hashedPassword = await hash('Admintest123!', 10);
   
@@ -728,7 +746,7 @@ async function main() {
           const fileSize = Math.floor(Math.random() * (fileType.sizeRange[1] - fileType.sizeRange[0])) + fileType.sizeRange[0];
           
           // File name based on ticket and type
-          const fileName = `ticket_${ticket.id.substring(0, 8)}_attachment_${j + 1}.${fileType.extension}`;
+          const fileName = `ticket_${String(ticket.id).substring(0, 8)}_attachment_${j + 1}.${fileType.extension}`;
           
           // Random uploader (either client or admin)
           const uploaderId = Math.random() < 0.7 ? userId : adminUser.id;
@@ -750,6 +768,440 @@ async function main() {
   }
   
   console.log(`Created ${allTickets.length} tickets with comments and attachments`);
+  
+  // Seed Feature Flags
+  console.log('Creating feature flags...');
+  await prisma.featureFlag.createMany({
+    data: [
+      {
+        featureName: 'Sample Feature Flag 1',
+        description: 'This is the first sample feature flag.',
+        enabledFor: ['all'],
+        isActive: true,
+      },
+      {
+        featureName: 'Sample Feature Flag 2',
+        description: 'This is the second sample feature flag.',
+        enabledFor: ['client1', 'client2'],
+        isActive: false,
+      },
+    ],
+  });
+
+  // Seed Custom Features
+  console.log('Creating custom features...');
+  await prisma.customFeature.createMany({
+    data: [
+      {
+        clientId: 'client1',
+        featureName: 'Sample Custom Feature 1',
+        description: 'This is the first sample custom feature.',
+        status: 'DRAFT',
+      },
+      {
+        clientId: 'client2',
+        featureName: 'Sample Custom Feature 2',
+        description: 'This is the second sample custom feature.',
+        status: 'TESTING',
+        sandboxUrl: 'https://sandbox.example.com/2',
+      },
+    ],
+  });
+  
+  // Seed invoices and payments
+  console.log('Creating invoices and payments...');
+  const invoice1 = await prisma.invoice.create({
+    data: {
+      clientId: String(adminUser.id),
+      amount: 100,
+      status: 'paid',
+      dueDate: new Date('2023-10-01'),
+    }
+  });
+  
+  const invoice2 = await prisma.invoice.create({
+    data: {
+      clientId: String(memberUser.id),
+      amount: 50,
+      status: 'failed',
+      dueDate: new Date('2023-10-05'),
+      attempts: 2,
+    }
+  });
+  
+  const invoice3 = await prisma.invoice.create({
+    data: {
+      clientId: String(freeUser.id),
+      amount: 200,
+      status: 'pending',
+      dueDate: new Date('2023-10-10'),
+    }
+  });
+  
+  // Create payments for invoices
+  await prisma.payment.createMany({
+    data: [
+      {
+        clientId: String(adminUser.id),
+        invoiceId: invoice1.id,
+        amount: 100,
+        date: new Date('2023-10-01'),
+        method: 'credit_card',
+      },
+      {
+        clientId: String(memberUser.id),
+        invoiceId: invoice2.id,
+        amount: 50,
+        date: new Date('2023-10-05'),
+        method: 'paypal',
+      },
+    ],
+  });
+  
+  // Seed debug sessions
+  console.log('Creating debug sessions...');
+  await prisma.debugSession.createMany({
+    data: [
+      {
+        clientName: 'Client A',
+        chatbotId: allBots[0].id,
+        startedAt: new Date('2023-10-01T10:00:00Z'),
+        status: 'ended',
+        messages: [
+          {
+            sender: 'user',
+            text: 'Hello, my chatbot is not working.',
+            timestamp: '2023-10-01T10:05:00Z',
+          },
+          {
+            sender: 'bot',
+            text: 'Hi! How can I assist you today?',
+            timestamp: '2023-10-01T10:06:00Z',
+          },
+        ],
+      },
+    ],
+  });
+  
+  // Seed logs
+  console.log('Creating logs...');
+  await prisma.log.createMany({
+    data: [
+      {
+        userId: adminUser.userId,
+        username: 'admin@example.com',
+        ipAddress: '192.168.1.1',
+        timestamp: new Date('2023-10-01T12:34:56Z'),
+        activity: 'login',
+        location: 'New York, USA',
+        isSuspicious: false,
+      },
+      {
+        userId: memberUser.userId, 
+        username: 'test@example.com',
+        ipAddress: '203.0.113.45',
+        timestamp: new Date('2023-10-02T14:22:10Z'),
+        activity: 'failed_login',
+        location: 'London, UK',
+        isSuspicious: true,
+      },
+      {
+        userId: freeUser.userId,
+        username: 'free@example.com',
+        ipAddress: '198.51.100.23',
+        timestamp: new Date('2023-10-03T09:15:30Z'),
+        activity: 'logout',
+        isSuspicious: false,
+      },
+    ],
+  });
+  
+  // Seed requests
+  console.log('Creating requests...');
+  await prisma.request.createMany({
+    data: [
+      {
+        userId: adminUser.userId,
+        username: 'admin@example.com',
+        requestType: 'data_access',
+        status: 'pending',
+        requestedAt: new Date('2023-10-01T10:00:00Z'),
+      },
+      {
+        userId: memberUser.userId,
+        username: 'test@example.com',
+        requestType: 'data_deletion',
+        status: 'completed',
+        requestedAt: new Date('2023-10-02T11:30:00Z'),
+        completedAt: new Date('2023-10-02T12:00:00Z'),
+      },
+      {
+        userId: freeUser.userId,
+        username: 'free@example.com',
+        requestType: 'data_access',
+        status: 'rejected',
+        requestedAt: new Date('2023-10-03T09:00:00Z'),
+      },
+    ],
+  });
+  
+  // Seed configs
+  console.log('Creating configs...');
+  await prisma.config.createMany({
+    data: [
+      {
+        clientName: 'Client A',
+        defaultBehavior: {
+          responseDelay: 2,
+          tone: 'friendly',
+          language: 'en',
+        },
+        branding: {
+          primaryColor: '#3b82f6',
+          secondaryColor: '#10b981',
+        },
+      },
+      {
+        clientName: 'Client B',
+        defaultBehavior: {
+          responseDelay: 5,
+          tone: 'formal',
+          language: 'es',
+        },
+        branding: {
+          primaryColor: '#ef4444',
+          secondaryColor: '#f59e0b',
+        },
+      },
+    ],
+  });
+  
+  // Seed overrides
+  console.log('Creating overrides...');
+  await prisma.override.createMany({
+    data: [
+      {
+        action: 'restart',
+        target: 'all',
+        status: 'completed',
+        initiatedAt: new Date('2023-10-01T10:00:00Z'),
+        completedAt: new Date('2023-10-01T10:02:00Z'),
+      },
+      {
+        action: 'disable',
+        target: 'specific',
+        clientIds: ['client1', 'client2'],
+        status: 'pending',
+        initiatedAt: new Date('2023-10-02T12:00:00Z'),
+      },
+    ],
+  });
+  
+  // Seed clients
+  console.log('Creating clients...');
+  await prisma.client.createMany({
+    data: [
+      {
+        name: 'TechCorp Solutions',
+        industry: 'Technology',
+        size: 'Large (500-1000)',
+        subscriptionPlan: 'Enterprise',
+        status: 'Active',
+        contactEmail: 'admin@techcorp.com',
+        contactPhone: '(555) 123-4567',
+        contactPerson: 'John Smith',
+        apiUsage: '85%',
+        lastActive: new Date('2024-03-05'),
+      },
+      {
+        name: 'HealthCare Innovations',
+        industry: 'Healthcare',
+        size: 'Medium (100-500)',
+        subscriptionPlan: 'Professional',
+        status: 'Active',
+        contactEmail: 'support@healthcare.com',
+        contactPhone: '(555) 987-6543',
+        contactPerson: 'Emily Rodriguez',
+        apiUsage: '62%',
+        lastActive: new Date('2024-03-04'),
+      },
+      {
+        name: 'FinServe Global',
+        industry: 'Finance',
+        size: 'Small (10-100)',
+        subscriptionPlan: 'Basic',
+        status: 'Suspended',
+        contactEmail: 'info@finserve.com',
+        contactPhone: '(555) 456-7890',
+        contactPerson: 'Robert Taylor',
+        apiUsage: '0%',
+        lastActive: new Date('2024-02-20'),
+      }
+    ],
+  });
+  
+  // Seed errors
+  console.log('Creating errors...');
+  await prisma.error.createMany({
+    data: [
+      {
+        clientId: 'client1',
+        clientName: 'Client A',
+        timestamp: new Date('2023-10-01T12:00:00Z'),
+        errorType: 'Timeout',
+        errorMessage: 'Request timed out after 10 seconds.',
+        modelId: '1',
+        modelName: 'GPT-4',
+        severity: 'high',
+        status: 'new',
+      },
+      {
+        clientId: 'client2',
+        clientName: 'Client B',
+        timestamp: new Date('2023-10-02T14:00:00Z'),
+        errorType: 'Authentication Failure',
+        errorMessage: 'Invalid API key provided.',
+        modelId: '2',
+        modelName: 'BERT',
+        severity: 'critical',
+        status: 'investigating',
+      },
+    ],
+  });
+  
+  // Seed statistics
+  console.log('Creating statistics...');
+  await prisma.statistic.createMany({
+    data: [
+      {
+        date: new Date('2023-10-01'),
+        totalInteractions: 1200,
+        uniqueUsers: 300,
+        avgResponseTime: 1.2,
+        errorRate: 0.5,
+      },
+      {
+        date: new Date('2023-10-02'),
+        totalInteractions: 1500,
+        uniqueUsers: 400,
+        avgResponseTime: 1.1,
+        errorRate: 0.4,
+      },
+      {
+        date: new Date('2023-10-03'),
+        totalInteractions: 1800,
+        uniqueUsers: 500,
+        avgResponseTime: 1.3,
+        errorRate: 0.6,
+      },
+    ],
+  });
+  
+  // Seed datasets
+  console.log('Creating datasets...');
+  await prisma.dataset.createMany({
+    data: [
+      {
+        clientId: '1',
+        clientName: 'Client A',
+        name: 'Customer Support Dataset',
+        status: 'pending_review',
+        fileCount: 10,
+        totalSize: '1.2 GB',
+        submittedAt: new Date('2023-10-01T09:00:00Z'),
+        description: 'Dataset containing customer support interactions for training.',
+      },
+      {
+        clientId: '2',
+        clientName: 'Client B',
+        name: 'Product Reviews Dataset',
+        status: 'approved',
+        fileCount: 5,
+        totalSize: '500 MB',
+        submittedAt: new Date('2023-09-28T11:00:00Z'),
+        description: 'Dataset containing product reviews for sentiment analysis.',
+      },
+    ],
+  });
+  
+  // Seed models
+  console.log('Creating models...');
+  await prisma.model.createMany({
+    data: [
+      {
+        name: 'GPT-4',
+        provider: 'OpenAI',
+        version: '4.0',
+        type: 'Text Generation',
+        status: 'active',
+        lastUpdated: new Date('2023-10-01'),
+      },
+      {
+        name: 'BERT',
+        provider: 'Google',
+        version: '1.0',
+        type: 'Text Classification',
+        status: 'inactive',
+        lastUpdated: new Date('2023-09-15'),
+      },
+      {
+        name: 'DALL-E',
+        provider: 'OpenAI',
+        version: '2.0',
+        type: 'Image Generation',
+        status: 'deprecated',
+        lastUpdated: new Date('2023-08-01'),
+      },
+    ],
+  });
+  
+  // Seed integrations
+  console.log('Creating integrations...');
+  await prisma.integration.createMany({
+    data: [
+      {
+        platform: 'whatsapp',
+        clientName: 'Client A',
+        status: 'connected',
+        lastChecked: new Date('2023-10-01T10:00:00Z'),
+      },
+      {
+        platform: 'shopify',
+        clientName: 'Client B',
+        status: 'error',
+        lastChecked: new Date('2023-10-02T12:00:00Z'),
+        errorMessage: 'Authentication failed',
+      },
+      {
+        platform: 'instagram',
+        clientName: 'Client C',
+        status: 'disconnected',
+        lastChecked: new Date('2023-10-03T14:00:00Z'),
+      },
+    ],
+  });
+  
+  // Seed API keys
+  console.log('Creating API keys...');
+  await prisma.apiKey.createMany({
+    data: [
+      {
+        clientName: 'Client A',
+        apiKey: 'api_1234567890abcdef',
+        status: 'active',
+        usageLimit: 1000,
+        usageCount: 450,
+      },
+      {
+        clientName: 'Client B',
+        apiKey: 'api_0987654321fedcba',
+        status: 'revoked',
+        usageLimit: 500,
+        usageCount: 500,
+      },
+    ],
+  });
+  
   console.log('Seed completed successfully!');
 }
 
@@ -761,3 +1213,4 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
+        //

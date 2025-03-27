@@ -369,3 +369,170 @@ enum BotModel {
   CLAUDE_3_HAIKU
   GEMINI_PRO
 }
+
+model FeatureFlag {
+  id          String   @id @default(cuid()) // Use String for UUID or cuid()
+  featureName String
+  description String
+  enabledFor  String[] @default(["all"]) // Array of strings
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model CustomFeature {
+  id            String   @id @default(cuid())
+  clientId      String
+  featureName   String
+  description   String
+  status        String   @default("DRAFT")
+  sandboxUrl    String?
+  productionUrl String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Invoice {
+  id       String   @id @default(uuid())
+  clientId String
+  amount   Float
+  status   String   // e.g., "paid", "failed", "pending"
+  dueDate  DateTime
+  attempts Int?     // Optional (only used in some invoices)
+  payments Payment[] // Relation to payments
+}
+
+model Payment {
+  id        String   @id @default(uuid())
+  clientId  String
+  invoiceId String
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id])
+  amount    Float
+  date      DateTime
+  method    String   // e.g., "credit_card", "paypal"
+}
+
+
+model DebugSession {
+  id          Int      @id @default(autoincrement())
+  clientName  String
+  chatbotId   String
+  startedAt   DateTime
+  status      String
+  messages    Json
+}
+
+model Log {
+  id          String   @id @default(cuid())
+  userId      String
+  username    String
+  ipAddress   String
+  timestamp   DateTime
+  activity    String
+  location    String?
+  isSuspicious Boolean
+}
+
+model Request {
+  id           String   @id @default(uuid())
+  userId       String
+  username     String
+  requestType  String
+  status       String
+  requestedAt  DateTime
+  completedAt  DateTime?
+}
+
+model config {
+  id             String   @id @default(cuid())
+  clientName     String
+  defaultBehavior Json
+  branding       Json
+}
+
+model Override {
+  id          String   @id @default(cuid())
+  action      String
+  target      String
+  clientIds   String[] @default([])
+  status      String
+  initiatedAt DateTime
+  completedAt DateTime?
+}
+
+model Client {
+  id             String   @id @default(cuid())
+  name           String
+  industry       String
+  size           String
+  subscriptionPlan String
+  status         String
+  contactEmail   String
+  contactPhone   String
+  contactPerson  String
+  apiUsage       String
+  lastActive     DateTime
+}
+
+model Error {
+  id          Int      @id @default(autoincrement())
+  clientId    String
+  clientName  String
+  timestamp   DateTime
+  errorType   String
+  errorMessage String
+  modelId     String
+  modelName   String
+  severity    String
+  status      String
+}
+
+model Statistic {
+  id               Int      @id @default(autoincrement())
+  date             DateTime
+  totalInteractions Int
+  uniqueUsers      Int
+  avgResponseTime  Float
+  errorRate        Float
+}
+
+model Dataset {
+  id          Int      @id @default(autoincrement())
+  clientId    String
+  clientName  String
+  name        String
+  status      String
+  fileCount   Int
+  totalSize   String
+  submittedAt DateTime
+  description String
+}
+
+model Model {
+  id          Int      @id @default(autoincrement())
+  name        String
+  provider    String
+  version     String
+  type        String
+  status      String
+  lastUpdated DateTime
+}
+
+model Integration {
+  id           Int      @id @default(autoincrement())
+  platform     String
+  clientName   String
+  status       String
+  lastChecked  DateTime
+  errorMessage String?  // Optional field for error messages
+}
+
+model ApiKey {
+  id          Int      @id @default(autoincrement())
+  clientName  String
+  apiKey      String   @unique
+  createdAt   DateTime @default(now())
+  status      String
+  usageLimit  Int
+  usageCount  Int
+}

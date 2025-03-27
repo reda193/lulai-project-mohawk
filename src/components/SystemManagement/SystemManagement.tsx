@@ -1,5 +1,5 @@
 'use client';
-import { FC, useState } from 'react';
+import { FC, useEffect, useState } from 'react';
 import { MoreHorizontalIcon, SettingsIcon, PaletteIcon, PowerIcon, AlertTriangleIcon } from 'lucide-react';
 
 // Types
@@ -201,111 +201,185 @@ const EmergencyOverrides: FC<EmergencyOverridesProps> = ({ overrides, onRestartS
 };
 
 // Main Component
-interface SystemManagementProps {
-  initialData?: {
-    configs: ChatbotConfig[];
-    overrides: EmergencyOverride[];
-  };
-}
+const SystemManagement: FC = () => { 
+  const [configs, setConfigs] = useState<ChatbotConfig[]>([]);
+  const [overrides, setOverrides] = useState<EmergencyOverride[]>([]);
+  const [loading, setLoading] = useState(true);
 
-const SystemManagement: FC<SystemManagementProps> = ({ initialData = {
-  configs: [
-    {
-      id: '1',
-      clientName: 'Client A',
-      defaultBehavior: {
-        responseDelay: 2,
-        tone: 'friendly',
-        language: 'en',
-      },
-      branding: {
-        primaryColor: '#3b82f6',
-        secondaryColor: '#10b981',
-      },
-    },
-    {
-      id: '2',
-      clientName: 'Client B',
-      defaultBehavior: {
-        responseDelay: 5,
-        tone: 'formal',
-        language: 'es',
-      },
-      branding: {
-        primaryColor: '#ef4444',
-        secondaryColor: '#f59e0b',
-      },
-    },
-  ],
-  overrides: [
-    {
-      id: '1',
-      action: 'restart',
-      target: 'all',
-      status: 'completed',
-      initiatedAt: '2023-10-01T10:00:00Z',
-      completedAt: '2023-10-01T10:02:00Z',
-    },
-    {
-      id: '2',
-      action: 'disable',
-      target: 'specific',
-      clientIds: ['client1', 'client2'],
-      status: 'pending',
-      initiatedAt: '2023-10-02T12:00:00Z',
-    },
-  ],
-} }) => {
-  const [configs, setConfigs] = useState<ChatbotConfig[]>(initialData.configs);
-  const [overrides, setOverrides] = useState<EmergencyOverride[]>(initialData.overrides);
-
-  const handleUpdateBehavior = (configId: string, newBehavior: ChatbotConfig['defaultBehavior']) => {
-    setConfigs(configs.map(config =>
-      config.id === configId ? { ...config, defaultBehavior: newBehavior } : config
-    ));
-  };
-
-  const handleUpdateBranding = (configId: string, newBranding: ChatbotConfig['branding']) => {
-    setConfigs(configs.map(config =>
-      config.id === configId ? { ...config, branding: newBranding } : config
-    ));
-  };
-
-  const handleRestartServices = (target: 'all' | 'specific', clientIds?: string[]) => {
-    const newOverride: EmergencyOverride = {
-      id: Date.now().toString(),
-      action: 'restart',
-      target,
-      clientIds,
-      status: 'pending',
-      initiatedAt: new Date().toISOString(),
+  // Fetch data only once when component mounts
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        
+        // Fetch configs
+        const configsResponse = await fetch('/api/admin/configs');
+        const configsData = await configsResponse.json();
+        
+        // Fetch overrides
+        const overridesResponse = await fetch('/api/admin/overrides');
+        const overridesData = await overridesResponse.json();
+        
+        // Update state with fetched data
+        setConfigs(configsData.configs || []);
+        setOverrides(overridesData.overrides || []);
+      } catch (error) {
+        console.error('Error fetching system data:', error);
+      } finally {
+        setLoading(false);
+      }
     };
-    setOverrides([...overrides, newOverride]);
-    // Simulate completion after 2 seconds
-    setTimeout(() => {
-      setOverrides(overrides.map(override =>
-        override.id === newOverride.id ? { ...override, status: 'completed', completedAt: new Date().toISOString() } : override
-      ));
-    }, 2000);
+    
+    fetchData();
+  }, []); // Empty dependency array ensures this only runs once
+
+  const handleUpdateBehavior = async (configId: string, newBehavior: ChatbotConfig['defaultBehavior']) => {
+    try {
+      // Optimistic UI update
+      setConfigs(prevConfigs => 
+        prevConfigs.map(config =>
+          config.id === configId ? { ...config, defaultBehavior: newBehavior } : config
+        )
+      );
+      
+      // API call to update behavior
+      await fetch(`/api/admin/configs/${configId}/behavior`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newBehavior)
+      });
+    } catch (error) {
+      console.error('Error updating behavior:', error);
+      // You might want to revert the optimistic update or show an error message
+    }
   };
 
-  const handleDisableChatbots = (target: 'all' | 'specific', clientIds?: string[]) => {
-    const newOverride: EmergencyOverride = {
-      id: Date.now().toString(),
-      action: 'disable',
-      target,
-      clientIds,
-      status: 'pending',
-      initiatedAt: new Date().toISOString(),
-    };
-    setOverrides([...overrides, newOverride]);
-    // Simulate completion after 2 seconds
-    setTimeout(() => {
-      setOverrides(overrides.map(override =>
-        override.id === newOverride.id ? { ...override, status: 'completed', completedAt: new Date().toISOString() } : override
-      ));
-    }, 2000);
+  const handleUpdateBranding = async (configId: string, newBranding: ChatbotConfig['branding']) => {
+    try {
+      // Optimistic UI update
+      setConfigs(prevConfigs => 
+        prevConfigs.map(config =>
+          config.id === configId ? { ...config, branding: newBranding } : config
+        )
+      );
+      
+      // API call to update branding
+      await fetch(`/api/admin/configs/${configId}/branding`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newBranding)
+      });
+    } catch (error) {
+      console.error('Error updating branding:', error);
+      // Handle error appropriately
+    }
   };
+
+  const handleRestartServices = async (target: 'all' | 'specific', clientIds?: string[]) => {
+    try {
+      const newOverrideId = Date.now().toString();
+      const initiatedAt = new Date().toISOString();
+      
+      // Create new override object
+      const newOverride: EmergencyOverride = {
+        id: newOverrideId,
+        action: 'restart',
+        target,
+        clientIds,
+        status: 'pending',
+        initiatedAt,
+      };
+      
+      // Optimistic UI update - add the new override
+      setOverrides(prev => [...prev, newOverride]);
+      
+      // API call to initiate restart
+      await fetch('/api/admin/overrides/restart', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target, clientIds, initiatedAt })
+      });
+      
+      // Simulate completion after 2 seconds (in a real app, you'd handle this with a webhook or polling)
+      setTimeout(async () => {
+        const completedAt = new Date().toISOString();
+        
+        // Optimistic UI update for completion
+        setOverrides(prev => 
+          prev.map(override =>
+            override.id === newOverrideId 
+              ? { ...override, status: 'completed', completedAt } 
+              : override
+          )
+        );
+        
+        // API call to update override status
+        await fetch(`/api/admin/overrides/${newOverrideId}/complete`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ completedAt })
+        });
+      }, 2000);
+    } catch (error) {
+      console.error('Error restarting services:', error);
+      // Handle error appropriately
+    }
+  };
+
+  const handleDisableChatbots = async (target: 'all' | 'specific', clientIds?: string[]) => {
+    try {
+      const newOverrideId = Date.now().toString();
+      const initiatedAt = new Date().toISOString();
+      
+      // Create new override object
+      const newOverride: EmergencyOverride = {
+        id: newOverrideId,
+        action: 'disable',
+        target,
+        clientIds,
+        status: 'pending',
+        initiatedAt,
+      };
+      
+      // Optimistic UI update - add the new override
+      setOverrides(prev => [...prev, newOverride]);
+      
+      // API call to initiate disable
+      await fetch('/api/admin/overrides/disable', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target, clientIds, initiatedAt })
+      });
+      
+      // Simulate completion after 2 seconds (in a real app, you'd handle this with a webhook or polling)
+      setTimeout(async () => {
+        const completedAt = new Date().toISOString();
+        
+        // Optimistic UI update for completion
+        setOverrides(prev => 
+          prev.map(override =>
+            override.id === newOverrideId 
+              ? { ...override, status: 'completed', completedAt } 
+              : override
+          )
+        );
+        
+        // API call to update override status
+        await fetch(`/api/admin/overrides/${newOverrideId}/complete`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ completedAt })
+        });
+      }, 2000);
+    } catch (error) {
+      console.error('Error disabling chatbots:', error);
+      // Handle error appropriately
+    }
+  };
+
+  if (loading) {
+    return <div className="p-6">Loading system management data...</div>;
+  }
 
   return (
     <div className="p-6">

@@ -1,5 +1,5 @@
 'use client';
-import { FC, useState } from 'react';
+import { FC, useEffect, useState } from 'react';
 import { 
   MoreHorizontalIcon, 
   AlertTriangleIcon, 
@@ -170,8 +170,8 @@ const ClientModelConfig: FC<ClientModelConfigProps> = ({ clients, models, onChan
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
-            {clients.map(client => (
-              <tr key={client.clientId}>
+            {clients.map((client, index) => (
+              <tr key={`client-${client.clientId || index}`}>
                 <td className="px-4 py-4 whitespace-nowrap font-medium">{client.clientName}</td>
                 <td className="px-4 py-4 whitespace-nowrap">
                   <select 
@@ -180,18 +180,16 @@ const ClientModelConfig: FC<ClientModelConfigProps> = ({ clients, models, onChan
                     className="border border-gray-300 rounded px-2 py-1"
                   >
                     {activeModels.map(model => (
-                      <option key={model.id} value={model.id}>
+                      <option key={`option-${client.clientId || index}-${model.id}`} value={model.id}>
                         {model.name} ({model.provider})
                       </option>
                     ))}
                   </select>
                 </td>
-                <td className="px-4 py-4 whitespace-nowrap">{client.usageThisMonth.toLocaleString()} interactions</td>
+                <td className="px-4 py-4 whitespace-nowrap">{client.usageThisMonth ? client.usageThisMonth.toLocaleString() : "0"} interactions</td>
                 <td className="px-4 py-4 whitespace-nowrap">{client.lastInteraction}</td>
                 <td className="px-4 py-4 whitespace-nowrap">
-                  <button 
-                    className="text-purple-600 hover:text-purple-800"
-                  >
+                  <button className="text-purple-600 hover:text-purple-800">
                     Configure
                   </button>
                 </td>
@@ -556,133 +554,50 @@ interface AIManagementProps {
   };
 }
 
-const AIManagement: FC<AIManagementProps> = ({ initialData = { 
-  models: [
-    {
-      id: '1',
-      name: 'GPT-4',
-      provider: 'OpenAI',
-      version: '4.0',
-      type: 'Text Generation',
-      status: 'active',
-      lastUpdated: '2023-10-01',
-    },
-    {
-      id: '2',
-      name: 'BERT',
-      provider: 'Google',
-      version: '1.0',
-      type: 'Text Classification',
-      status: 'inactive',
-      lastUpdated: '2023-09-15',
-    },
-    {
-      id: '3',
-      name: 'DALL-E',
-      provider: 'OpenAI',
-      version: '2.0',
-      type: 'Image Generation',
-      status: 'deprecated',
-      lastUpdated: '2023-08-01',
-    },
-  ],
-  clients: [
-    {
-      clientId: '1',
-      clientName: 'Client A',
-      defaultModel: '1',
-      enabledModels: ['1', '2'],
-      usageThisMonth: 1200,
-      lastInteraction: '2023-10-05T14:30:00Z',
-    },
-    {
-      clientId: '2',
-      clientName: 'Client B',
-      defaultModel: '2',
-      enabledModels: ['2'],
-      usageThisMonth: 800,
-      lastInteraction: '2023-10-04T10:15:00Z',
-    },
-  ],
-  datasets: [
-    {
-      id: '1',
-      clientId: '1',
-      clientName: 'Client A',
-      name: 'Customer Support Dataset',
-      status: 'pending_review',
-      fileCount: 10,
-      totalSize: '1.2 GB',
-      submittedAt: '2023-10-01T09:00:00Z',
-      description: 'Dataset containing customer support interactions for training.',
-    },
-    {
-      id: '2',
-      clientId: '2',
-      clientName: 'Client B',
-      name: 'Product Reviews Dataset',
-      status: 'approved',
-      fileCount: 5,
-      totalSize: '500 MB',
-      submittedAt: '2023-09-28T11:00:00Z',
-      description: 'Dataset containing product reviews for sentiment analysis.',
-    },
-  ],
-  statistics: [
-    {
-      date: '2023-10-01',
-      totalInteractions: 1200,
-      uniqueUsers: 300,
-      avgResponseTime: 1.2,
-      errorRate: 0.5,
-    },
-    {
-      date: '2023-10-02',
-      totalInteractions: 1500,
-      uniqueUsers: 400,
-      avgResponseTime: 1.1,
-      errorRate: 0.4,
-    },
-    {
-      date: '2023-10-03',
-      totalInteractions: 1800,
-      uniqueUsers: 500,
-      avgResponseTime: 1.3,
-      errorRate: 0.6,
-    },
-  ],
-  errors: [
-    {
-      id: '1',
-      clientId: '1',
-      clientName: 'Client A',
-      timestamp: '2023-10-01T12:00:00Z',
-      errorType: 'Timeout',
-      errorMessage: 'Request timed out after 10 seconds.',
-      modelId: '1',
-      modelName: 'GPT-4',
-      severity: 'high',
-      status: 'new',
-    },
-    {
-      id: '2',
-      clientId: '2',
-      clientName: 'Client B',
-      timestamp: '2023-10-02T14:00:00Z',
-      errorType: 'Authentication Failure',
-      errorMessage: 'Invalid API key provided.',
-      modelId: '2',
-      modelName: 'BERT',
-      severity: 'critical',
-      status: 'investigating',
-    },
-  ],
-} }) => {
-  const [models, setModels] = useState<AIModel[]>(initialData.models);
-  const [clients, setClients] = useState<ClientModel[]>(initialData.clients);
-  const [datasets, setDatasets] = useState<TrainingDataset[]>(initialData.datasets);
-  const [statistics, setStatistics] = useState<UsageStatistic[]>(initialData.statistics);
-  const [errors, setErrors] = useState<ErrorLog[]>(initialData.errors);
+const AIManagement: FC = () => { 
+  const [models, setModels] = useState<AIModel[]>([]);
+  const [clients, setClients] = useState<ClientModel[]>([]);
+const [datasets, setDatasets] = useState<TrainingDataset[]>([]);
+const [statistics, setStatistics] = useState<UsageStatistic[]>([]);
+const [errors, setErrors] = useState<ErrorLog[]>([]);  
+
+  useEffect(() => {
+    const fetchModels = async () => {
+      const response = await fetch('/api/admin/models');
+      const { models } = await response.json();
+      setModels(models);
+    };
+
+    const fetchClients = async () => {
+      const response = await fetch('/api/admin/clients');
+      const { clients } = await response.json();
+      setClients(clients);
+    };
+
+    const fetchDatasets = async () => {
+      const response = await fetch('/api/admin/datasets');
+      const { datasets } = await response.json();
+      setDatasets(datasets);
+    };
+
+    const fetchStatistics = async () => {
+      const response = await fetch('/api/admin/statistics');
+      const { statistics } = await response.json();
+      setStatistics(statistics);
+    };
+
+    const fetchErrors = async () => {
+      const response = await fetch('/api/admin/errors');
+      const { errors } = await response.json();
+      setErrors(errors);
+    };
+  fetchModels();
+  fetchClients();
+  fetchDatasets();
+  fetchStatistics();
+  fetchErrors();
+
+ }, []);
   
   const handlePushUpdate = (modelId: string) => {
     // In a real implementation, this would make an API call to push model updates

@@ -1,5 +1,5 @@
 'use client';
-import { FC, useState } from 'react';
+import { FC, useEffect, useState } from 'react';
 import { MoreHorizontalIcon, KeyIcon, ActivityIcon, PlugIcon, AlertCircleIcon, TrashIcon } from 'lucide-react';
 
 // Types
@@ -179,54 +179,27 @@ interface ApiManagementProps {
   };
 }
 
-const ApiManagement: FC<ApiManagementProps> = ({ initialData = {
-  apiKeys: [
-    {
-      id: '1',
-      clientName: 'Client A',
-      apiKey: 'api_1234567890abcdef',
-      createdAt: '2023-10-01T10:00:00Z',
-      status: 'active',
-      usageLimit: 1000,
-      usageCount: 450,
-    },
-    {
-      id: '2',
-      clientName: 'Client B',
-      apiKey: 'api_0987654321fedcba',
-      createdAt: '2023-10-02T12:00:00Z',
-      status: 'revoked',
-      usageLimit: 500,
-      usageCount: 500,
-    },
-  ],
-  integrations: [
-    {
-      id: '1',
-      platform: 'whatsapp',
-      clientName: 'Client A',
-      status: 'connected',
-      lastChecked: '2023-10-01T10:00:00Z',
-    },
-    {
-      id: '2',
-      platform: 'shopify',
-      clientName: 'Client B',
-      status: 'error',
-      lastChecked: '2023-10-02T12:00:00Z',
-      errorMessage: 'Authentication failed',
-    },
-    {
-      id: '3',
-      platform: 'instagram',
-      clientName: 'Client C',
-      status: 'disconnected',
-      lastChecked: '2023-10-03T14:00:00Z',
-    },
-  ],
-} }) => {
-  const [apiKeys, setApiKeys] = useState<ApiKey[]>(initialData.apiKeys);
-  const [integrations, setIntegrations] = useState<ThirdPartyIntegration[]>(initialData.integrations);
+const ApiManagement: FC = () => { 
+  const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
+  const [integrations, setIntegrations] = useState<ThirdPartyIntegration[]>([]);
+
+
+  useEffect(() => {
+    const fetchApiKeys = async () => {
+      const response = await fetch('/api/admin/apiKeys');
+      const { apiKeys } = await response.json();
+      setApiKeys(apiKeys);
+    };
+
+    const fetchIntegrations = async () => {
+      const response = await fetch('/api/admin/integrations');
+      const { integrations } = await response.json();
+      setIntegrations(integrations);
+    };
+  fetchApiKeys();
+  fetchIntegrations();
+
+ }, []);
 
   const handleIssueKey = (clientName: string) => {
     const newKey: ApiKey = {
