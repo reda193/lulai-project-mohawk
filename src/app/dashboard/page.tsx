@@ -134,7 +134,7 @@ export default async function DashboardPage() {
                 Quick Analytics
               </h2>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <VisitorsMap data={[]} /> 
+                <VisitorsMap  /> 
                 <RepliesChart data={[]} /> 
               </div>
             </section>

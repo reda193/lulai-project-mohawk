@@ -6,6 +6,7 @@ import Sidebar from '@/components/Sidebar/Sidebar';
 import { useRouter } from 'next/navigation';
 import ChatbotAgentSlider from '@/components/ChatbotAgents/ChatbotAgentSlider';
 import AgentCard from '@/components/ChatbotAgents/AgentCard';
+import { useSession } from 'next-auth/react';
 
 interface BotAppearance {
   bot_avatar?: string | null;
@@ -17,6 +18,7 @@ interface Agent {
   id: string;
   name: string;
   status: string;
+  userId?: string;
   appearance?: BotAppearance | null;
 }
 
@@ -26,38 +28,75 @@ const AgentsPage = () => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const { data: session, status } = useSession();
 
   useEffect(() => {
-    const fetchUserAgents = async () => {
-      try {
-        setIsLoading(true);
-        const response = await fetch('/api/bot');
-        
-        if (!response.ok) {
-          throw new Error('Failed to fetch agents');
+    // Check if user is authenticated
+    if (status === 'unauthenticated') {
+      router.replace('/');
+      return;
+    }
+
+    // Only proceed with fetching agents if user is authenticated
+    if (status === 'authenticated') {
+      const fetchUserAgents = async () => {
+        try {
+          setIsLoading(true);
+          const response = await fetch('/api/bot');
+          
+          if (!response.ok) {
+            throw new Error('Failed to fetch agents');
+          }
+          
+          const data = await response.json();
+          
+          // Filter to only include agents that belong to the current user
+          const currentUserId = session?.user?.id;
+          const userAgents = data.bots
+            .filter((bot: any) => bot.userId === currentUserId)
+            .map((bot: any) => ({
+              id: bot.id,
+              name: bot.bot_name || 'Unnamed Agent',
+              status: 'Active', // Always set to Active for now
+              userId: bot.userId,
+              appearance: bot.appearance?.[0] ? {
+                bot_avatar: bot.appearance[0].bot_avatar,
+                company_logo: bot.appearance[0].company_logo,
+                accent_color: bot.appearance[0].accent_color
+              } : null
+            }));
+          
+          setAgents(userAgents);
+          
+          // If the user is trying to access agents that don't belong to them, redirect
+          if (data.bots.length > 0 && userAgents.length === 0) {
+            router.replace('/dashboard');
+          }
+        } catch (err) {
+          console.error('Error fetching agents:', err);
+          setError('Failed to load your agents. Please try again later.');
+        } finally {
+          setIsLoading(false);
         }
-        
-        const data = await response.json();
-        setAgents(data.bots.map((bot: any) => ({
-          id: bot.id,
-          name: bot.bot_name || 'Unnamed Agent',
-          status: 'Active', // Always set to Active for now
-          appearance: bot.appearance?.[0] ? {
-            bot_avatar: bot.appearance[0].bot_avatar,
-            company_logo: bot.appearance[0].company_logo,
-            accent_color: bot.appearance[0].accent_color
-          } : null
-        })));
-      } catch (err) {
-        console.error('Error fetching agents:', err);
-        setError('Failed to load your agents. Please try again later.');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-  
-    fetchUserAgents();
-  }, []);
+      };
+    
+      fetchUserAgents();
+    }
+  }, [status, router, session]);
+
+  // Show loading state while checking session
+  if (status === 'loading') {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <div className="w-10 h-10 border-4 border-gray-200 border-t-black rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  // Don't render the main content if not authenticated
+  if (status === 'unauthenticated') {
+    return null;
+  }
 
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -142,8 +181,6 @@ const AgentsPage = () => {
               <ChatbotAgentSlider agents={agents} />
             </section>
           )}
-          
-
         </div>
       </div>
     </div>

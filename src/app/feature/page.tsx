@@ -11,6 +11,10 @@ export default async function Analytics() {
     if (!session) {
         redirect('/');
     }
+
+    if (session.user?.role !== 'ADMIN') {
+        redirect('/dashboard');
+    }
     
     // Since we've checked that session isn't null, we can safely access its properties
     // Also added the missing userRole variable

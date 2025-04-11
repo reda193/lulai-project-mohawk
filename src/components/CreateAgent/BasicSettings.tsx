@@ -12,11 +12,11 @@ const BasicSettings: FC<BasicSettingsProps> = ({ formData, onChange }) => {
   };
 
   const companySizes = [
-    '1-10 employees',
-    '11-50 employees',
-    '51-200 employees',
-    '201-500 employees',
-    '500+ employees'
+    '1-10',
+    '11-50',
+    '51-200',
+    '201-500',
+    '500+'
   ];
 
   const companyTypes = [
@@ -83,7 +83,7 @@ const BasicSettings: FC<BasicSettingsProps> = ({ formData, onChange }) => {
               className="w-full px-3 py-2 border border-gray-300 rounded-md"
             >
               <option value="">Select size</option>
-              {companyTypes.map(size => (
+              {companySizes.map(size => (
                 <option key={size} value={size}>{size}</option>
               ))}
             </select>

@@ -56,6 +56,7 @@ const SentimentTrendsChart: React.FC<SentimentTrendsChartProps> = ({ timeRange, 
   });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [totalConversations, setTotalConversations] = useState(0);
 
   // Seeded random for fallback (reusing your existing function)
   function seededRandom(seed: number) {
@@ -108,6 +109,9 @@ const SentimentTrendsChart: React.FC<SentimentTrendsChartProps> = ({ timeRange, 
         const responseData: SentimentData = await response.json();
         console.log('Sentiment data received:', responseData);
         
+        // Store total conversations
+        setTotalConversations(responseData.summary?.totalConversations || 0);
+        
         // Transform data for the chart
         const chartData = responseData.timeSeriesData.map(item => ({
           name: item.period,
@@ -132,6 +136,7 @@ const SentimentTrendsChart: React.FC<SentimentTrendsChartProps> = ({ timeRange, 
         console.error('Error:', err);
         setError("Failed to load sentiment data");
         setData([]);
+        setTotalConversations(0);
         setIsLoading(false);
       }
     };
@@ -143,17 +148,30 @@ const SentimentTrendsChart: React.FC<SentimentTrendsChartProps> = ({ timeRange, 
   if (isLoading) {
     return (
       <div className="h-72 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-500"></div>
+        <div className="text-center px-5 py-3">
+          <div className="text-gray-500">Loading sentiment data...</div>
+        </div>
       </div>
     );
   }
 
-  // Show error or no data state
-  if (error || data.length === 0) {
+  // Show error state
+  if (error) {
     return (
       <div className="h-72 flex items-center justify-center">
-        <div className="text-center text-gray-500">
-          {error || "No sentiment data available"}
+        <div className="text-center px-5 py-3">
+          <div className="text-gray-500">{error}</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show no data state
+  if (data.length === 0 || totalConversations === 0) {
+    return (
+      <div className="h-72 flex items-center justify-center">
+        <div className="text-center px-5 py-3">
+          <div className="text-gray-500">No Sentiment data is available for this bot and time period</div>
         </div>
       </div>
     );

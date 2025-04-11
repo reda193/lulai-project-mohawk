@@ -119,7 +119,7 @@ const ResponseTimeChart: React.FC<ResponseTimeChartProps> = ({ timeRange, botId 
     return (
       <div className="h-72 flex items-center justify-center">
         <div className="text-center px-5 py-3">
-          <div className="text-gray-500">No response time data available</div>
+          <div className="text-gray-500">No  Average Response Time data is available for this bot and time period</div>
         </div>
       </div>
     );

@@ -90,21 +90,34 @@ const LeadGenerationChart: React.FC<LeadGenerationChartProps> = ({ timeRange, bo
     fetchLeadData();
   }, [timeRange, botId]);
 
-  // Show loading state
+  // Show loading state - updated to match other charts
   if (isLoading) {
     return (
       <div className="h-72 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
+        <div className="text-center px-5 py-3">
+          <div className="text-gray-500">Loading lead generation data...</div>
+        </div>
       </div>
     );
   }
 
-  // Show error or no data state
-  if (error || !leadData) {
+  // Show error state - updated to match other charts
+  if (error) {
     return (
       <div className="h-72 flex items-center justify-center">
-        <div className="text-center text-gray-500">
-          {error || "No lead generation data available"}
+        <div className="text-center px-5 py-3">
+          <div className="text-gray-500">{error}</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Check for no data - separated from error check
+  if (!leadData || !leadData.summary || leadData.summary.totalLeadConversations === 0) {
+    return (
+      <div className="h-72 flex items-center justify-center">
+        <div className="text-center px-5 py-3">
+          <div className="text-gray-500">No Lead Generation data is available for this bot and time period</div>
         </div>
       </div>
     );

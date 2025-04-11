@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, ChangeEvent, FormEvent } from "react";
+import { ArrowLeft } from 'lucide-react';
 import { SignUpFormProps } from './types';
 
 interface FormData {
@@ -28,7 +29,7 @@ interface ValidationState {
     confirmPassword: boolean;
 }
 
-const SignUpForm: React.FC<SignUpFormProps> = ({ onSubmit, onBack }) => {
+const SignUpForm: React.FC<SignUpFormProps> = ({ onSubmit, onBack, isLoading = false }) => {
     const [formData, setFormData] = useState<FormData>({
         firstName: '',
         lastName: '',
@@ -37,7 +38,6 @@ const SignUpForm: React.FC<SignUpFormProps> = ({ onSubmit, onBack }) => {
         confirmPassword: ''
     });
     const [errors, setErrors] = useState<FormErrors>({});
-    const [isSubmitting, setIsSubmitting] = useState(false);
     const [touched, setTouched] = useState<ValidationState>({
         firstName: false,
         lastName: false,
@@ -137,7 +137,9 @@ const SignUpForm: React.FC<SignUpFormProps> = ({ onSubmit, onBack }) => {
 
     const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
         e.preventDefault();
-        setIsSubmitting(true);
+        
+        if (isLoading) return;
+        
         setErrors({});
 
         const allFieldsValid = Object.values(isValid).every(valid => valid);
@@ -151,9 +153,7 @@ const SignUpForm: React.FC<SignUpFormProps> = ({ onSubmit, onBack }) => {
                     password: formData.password
                 });
             } catch (error) {
-                setErrors({ 
-                    submit: 'Registration failed. Please try again.' 
-                });
+                // Error handling is now moved up to the AuthContainer
                 console.error('Registration error:', error);
             }
         } else {
@@ -165,8 +165,6 @@ const SignUpForm: React.FC<SignUpFormProps> = ({ onSubmit, onBack }) => {
                 confirmPassword: true
             });
         }
-
-        setIsSubmitting(false);
     };
 
     return (
@@ -174,9 +172,11 @@ const SignUpForm: React.FC<SignUpFormProps> = ({ onSubmit, onBack }) => {
             <div className="text-center relative">
                 <button
                     onClick={onBack}
-                    className="absolute left-6 top-6 text-gray-600 hover:text-gray-900"
+                    className="absolute left-0 top-0 text-gray-600 hover:text-gray-900 p-1 rounded-full hover:bg-gray-100"
+                    aria-label="Go back"
+                    disabled={isLoading}
                 >
-                    <span className="w-5 h-5">←</span> {/* Replaced FontAwesome icon with a simple arrow */}
+                    <ArrowLeft size={20} />
                 </button>
                 <h2 className="text-2xl font-semibold">Create Account</h2>
                 <p className="text-sm text-gray-500 mt-2">Sign up to get started</p>
@@ -198,6 +198,7 @@ const SignUpForm: React.FC<SignUpFormProps> = ({ onSubmit, onBack }) => {
                                 value={formData.firstName}
                                 onChange={handleChange}
                                 placeholder="John"
+                                disabled={isLoading}
                             />
                             {touched.firstName && !isValid.firstName && (
                                 <p className="mt-1 text-xs text-red-600">{getErrorMessage('firstName')}</p>
@@ -217,6 +218,7 @@ const SignUpForm: React.FC<SignUpFormProps> = ({ onSubmit, onBack }) => {
                                 value={formData.lastName}
                                 onChange={handleChange}
                                 placeholder="Doe"
+                                disabled={isLoading}
                             />
                             {touched.lastName && !isValid.lastName && (
                                 <p className="mt-1 text-xs text-red-600">{getErrorMessage('lastName')}</p>
@@ -237,6 +239,7 @@ const SignUpForm: React.FC<SignUpFormProps> = ({ onSubmit, onBack }) => {
                             value={formData.email}
                             onChange={handleChange}
                             placeholder="john.doe@example.com"
+                            disabled={isLoading}
                         />
                         {touched.email && !isValid.email && (
                             <p className="mt-1 text-xs text-red-600">{getErrorMessage('email')}</p>
@@ -255,6 +258,7 @@ const SignUpForm: React.FC<SignUpFormProps> = ({ onSubmit, onBack }) => {
                             className={getInputStyle('password')}
                             value={formData.password}
                             onChange={handleChange}
+                            disabled={isLoading}
                         />
                         <div className="mt-1 text-xs text-gray-500">
                             <p>Password must:</p>
@@ -287,6 +291,7 @@ const SignUpForm: React.FC<SignUpFormProps> = ({ onSubmit, onBack }) => {
                             className={getInputStyle('confirmPassword')}
                             value={formData.confirmPassword}
                             onChange={handleChange}
+                            disabled={isLoading}
                         />
                         {touched.confirmPassword && !isValid.confirmPassword && (
                             <p className="mt-1 text-xs text-red-600">{getErrorMessage('confirmPassword')}</p>
@@ -294,16 +299,12 @@ const SignUpForm: React.FC<SignUpFormProps> = ({ onSubmit, onBack }) => {
                     </div>
                 </div>
 
-                {errors.submit && (
-                    <p className="text-sm text-red-600 text-center">{errors.submit}</p>
-                )}
-
                 <button
                     type="submit"
-                    disabled={isSubmitting}
+                    disabled={isLoading}
                     className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-black hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                    {isSubmitting ? 'Creating account...' : 'Create account'}
+                    {isLoading ? 'Creating account...' : 'Create account'}
                 </button>
             </form>
         </>

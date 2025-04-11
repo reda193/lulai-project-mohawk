@@ -74,6 +74,42 @@ export async function GET(
                     bot_qa: true,
                     bot_training: true,
                     training_coverage: true,
+                    // Include recent conversations
+                    conversations: {
+                        take: 10,
+                        orderBy: {
+                            start_time: 'desc'
+                        },
+                        include: {
+                            messages: {
+                                take: 5,
+                                orderBy: {
+                                    sent_at: 'desc'
+                                },
+                                include: {
+                                    knowledge_queries: true,
+                                    unrecognized_queries: true
+                                }
+                            },
+                            csat: true
+                        }
+                    },
+                    // Include related tickets
+                    tickets: {
+                        take: 5,
+                        orderBy: {
+                            created_at: 'desc'
+                        },
+                        include: {
+                            ticket_comments: {
+                                take: 3,
+                                orderBy: {
+                                    created_at: 'desc'
+                                }
+                            },
+                            ticket_attachments: true
+                        }
+                    },
                     creator: {
                         select: {
                             userId: true,
@@ -93,7 +129,50 @@ export async function GET(
                 );
             }
             
-            return NextResponse.json({ bot }, { status: 200 });
+            // Calculate some usage metrics
+            const conversationStats = await db.conversation.groupBy({
+                by: ['bot_id'],
+                where: {
+                    bot_id: botId
+                },
+                _count: {
+                    id: true
+                },
+                _avg: {
+                    sentiment_score: true
+                }
+            });
+            
+            // Get unrecognized queries count
+            const unrecognizedQueriesCount = await db.unrecognizedQueries.count({
+                where: {
+                    message: {
+                        conversation: {
+                            bot_id: botId
+                        }
+                    }
+                }
+            });
+            
+            // Get recent training coverage
+            const recentCoverage = await db.training_Coverage.findFirst({
+                where: {
+                    bot_id: botId
+                },
+                orderBy: {
+                    measure_at: 'desc'
+                }
+            });
+            
+            return NextResponse.json({ 
+                bot,
+                analytics: {
+                    conversation_count: conversationStats[0]?._count?.id || 0,
+                    avg_sentiment: conversationStats[0]?._avg?.sentiment_score || 0,
+                    unrecognized_queries_count: unrecognizedQueriesCount,
+                    latest_coverage: recentCoverage
+                }
+            }, { status: 200 });
         } 
         
         // If not admin, continue with normal security check
@@ -107,7 +186,43 @@ export async function GET(
                 appearance: true,
                 bot_qa: true,
                 bot_training: true,
-                training_coverage: true
+                training_coverage: true,
+                // Include recent conversations
+                conversations: {
+                    take: 10,
+                    orderBy: {
+                        start_time: 'desc'
+                    },
+                    include: {
+                        messages: {
+                            take: 5,
+                            orderBy: {
+                                sent_at: 'desc'
+                            },
+                            include: {
+                                knowledge_queries: true,
+                                unrecognized_queries: true
+                            }
+                        },
+                        csat: true
+                    }
+                },
+                // Include related tickets
+                tickets: {
+                    take: 5,
+                    orderBy: {
+                        created_at: 'desc'
+                    },
+                    include: {
+                        ticket_comments: {
+                            take: 3,
+                            orderBy: {
+                                created_at: 'desc'
+                            }
+                        },
+                        ticket_attachments: true
+                    }
+                }
             }
         });
         
@@ -118,7 +233,50 @@ export async function GET(
             );
         }
         
-        return NextResponse.json({ bot }, { status: 200 });
+        // Calculate some usage metrics for regular users as well
+        const conversationStats = await db.conversation.groupBy({
+            by: ['bot_id'],
+            where: {
+                bot_id: botId
+            },
+            _count: {
+                id: true
+            },
+            _avg: {
+                sentiment_score: true
+            }
+        });
+        
+        // Get unrecognized queries count
+        const unrecognizedQueriesCount = await db.unrecognizedQueries.count({
+            where: {
+                message: {
+                    conversation: {
+                        bot_id: botId
+                    }
+                }
+            }
+        });
+        
+        // Get recent training coverage
+        const recentCoverage = await db.training_Coverage.findFirst({
+            where: {
+                bot_id: botId
+            },
+            orderBy: {
+                measure_at: 'desc'
+            }
+        });
+        
+        return NextResponse.json({ 
+            bot,
+            analytics: {
+                conversation_count: conversationStats[0]?._count?.id || 0,
+                avg_sentiment: conversationStats[0]?._avg?.sentiment_score || 0,
+                unrecognized_queries_count: unrecognizedQueriesCount,
+                latest_coverage: recentCoverage
+            }
+        }, { status: 200 });
         
     } catch (error) {
         console.error("Error fetching bot:", error);
