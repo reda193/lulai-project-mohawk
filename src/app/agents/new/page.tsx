@@ -8,6 +8,7 @@ import AppearanceSettings from '@/components/CreateAgent/AppearanceSettings';
 import TrainingSettings from '@/components/CreateAgent/TrainingSettings';
 import Image from 'next/image';
 import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 
 type StepType = 'basic' | 'appearance' | 'training';
 
@@ -58,7 +59,15 @@ const CreateAgent = () => {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showDebugInfo, setShowDebugInfo] = useState<boolean>(true);
   const [statusMessage, setStatusMessage] = useState<string>('');
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
+  const router = useRouter();
+
+  // Check for authentication on component mount
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.replace('/');
+    }
+  }, [status, router]);
 
   // Refs for file inputs
   const companyLogoInputRef = useRef<HTMLInputElement>(null);
@@ -243,6 +252,14 @@ const CreateAgent = () => {
 
   // Create bot with all the collected data - Called only when clicking "Finish"
   const submitAgent = async () => {
+    // Check authentication before submitting
+    if (status !== 'authenticated') {
+      setErrors({
+        api: 'You must be logged in to create an agent'
+      });
+      return;
+    }
+    
     if (!validateStep()) {
       return;
     }
@@ -440,6 +457,14 @@ const CreateAgent = () => {
 
   // Navigation between steps
   const goToNextStep = () => {
+    // Check authentication before proceeding
+    if (status !== 'authenticated') {
+      setErrors({
+        api: 'You must be logged in to create an agent'
+      });
+      return;
+    }
+    
     if (validateStep()) {
       if (currentStep === 'basic') {
         setCurrentStep('appearance');
@@ -608,6 +633,20 @@ const CreateAgent = () => {
     </div>
   );
 
+  // Show loading state while checking session
+  if (status === 'loading') {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <div className="w-10 h-10 border-4 border-gray-200 border-t-black rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  // Redirect unauthenticated users (handled in useEffect)
+  if (status === 'unauthenticated') {
+    return null;
+  }
+
   return (
     <div className="flex min-h-screen bg-gray-50">
       {/* Menu Toggle Button */}
@@ -726,6 +765,7 @@ const CreateAgent = () => {
               <div><strong>Status:</strong> {statusMessage || 'None'}</div>
               <div><strong>Logo File:</strong> {logoFile ? logoFile.name : 'None'}</div>
               <div><strong>Avatar File:</strong> {avatarFile ? avatarFile.name : 'None'}</div>
+              <div><strong>Session Status:</strong> {status}</div>
               <div><strong>Form Data:</strong></div>
               <pre className="mt-2 p-2 bg-gray-200 rounded overflow-auto max-h-40">
                 {JSON.stringify(formData, null, 2)}

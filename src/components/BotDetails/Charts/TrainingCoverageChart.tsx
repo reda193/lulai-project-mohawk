@@ -75,7 +75,7 @@ const TrainingCoverageChart: React.FC<TrainingCoverageChartProps> = ({ timeRange
         setIsLoading(false);
       } catch (err) {
         console.error('Error:', err);
-        setError("Failed to load training coverage data");
+        setError("No Training Coverage is available for this bot and time period");
         setCoverageData(null);
         setIsLoading(false);
       }

@@ -5,7 +5,8 @@ import { MenuIcon, Search, MessageSquare, User, Filter, ChevronDown, MoreHorizon
   Download, AlertCircle, CheckCircle, Clock, Flag } from 'lucide-react';
 import Sidebar from '@/components/Sidebar/Sidebar';
 import AgentNavigation from '@/components/Navigation/AgentNavigation';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import Image from 'next/image';
 
 interface Message {
@@ -48,6 +49,8 @@ const AgentConversationsPage = () => {
   
   // Get agent ID from path
   const pathname = usePathname();
+  const router = useRouter();
+  const { data: session } = useSession();
   const pathSegments = pathname?.split('/') || [];
   const agentId = pathSegments.length > 2 ? pathSegments[2] : null;
 
@@ -84,6 +87,13 @@ const AgentConversationsPage = () => {
         // Fetch bot details
         const botResponse = await fetch(`/api/bot/${agentId}`);
         
+        // If the response is not OK and the user is not admin, redirect immediately
+        if (!botResponse.ok && session?.user?.role !== 'ADMIN') {
+          console.log('Unauthorized access, redirecting to dashboard');
+          router.push('/dashboard');
+          return;
+        }
+        
         if (!botResponse.ok) {
           throw new Error(`Failed to fetch agent details. Status: ${botResponse.status}`);
         }
@@ -106,6 +116,14 @@ const AgentConversationsPage = () => {
         await fetchConversations();
       } catch (error: any) {
         console.error('Error fetching data:', error);
+        
+        // Redirect non-admin users when there's an error
+        if (session?.user?.role !== 'ADMIN') {
+          console.log('Error occurred, redirecting to dashboard');
+          router.push('/dashboard');
+          return;
+        }
+        
         setError(typeof error === 'string' ? error : error.message || 'Failed to load data');
       } finally {
         setIsLoading(false);
@@ -115,7 +133,7 @@ const AgentConversationsPage = () => {
     if (agentId) {
       fetchData();
     }
-  }, [agentId]);
+  }, [agentId, router, session]);
 
   // Fetch conversations list
   const fetchConversations = async () => {

@@ -68,7 +68,6 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onToggle, userName }) => {
     { icon: HeadphonesIcon, label: 'Support', href: '/support' },
     { icon: ShieldAlertIcon, label: 'Security', href: '/security' },
     { icon: ServerIcon, label: 'System', href: '/system' },
-    { icon: BriefcaseIcon, label: 'Superadmin', href: '/superadmin' },
     { icon: BriefcaseIcon, label: 'APIM', href: '/apim' },
     { icon: BriefcaseIcon, label: 'Client', href: '/client' },
     { icon: BriefcaseIcon, label: 'AI', href: '/ai' },

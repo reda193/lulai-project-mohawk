@@ -1,15 +1,15 @@
 'use client';
 
-interface LoginOptionsProps {
-  onEmailClick: () => void;
-  onSignUpClick: () => void;
-  onSocialLogin?: (provider: 'google' | 'facebook' | 'apple') => void;
-}
+import { MdEmail } from "react-icons/md";
+import { FcGoogle } from "react-icons/fc";
+import { FaApple } from "react-icons/fa";
+import { LoginOptionsProps } from './types';
 
 const LoginOptions: React.FC<LoginOptionsProps> = ({
   onEmailClick,
   onSignUpClick,
   onSocialLogin,
+  isLoading = false
 }) => {
   return (
     <>
@@ -21,25 +21,28 @@ const LoginOptions: React.FC<LoginOptionsProps> = ({
       <div className="space-y-3">
         <button
           onClick={onEmailClick}
-          className="w-full flex items-center justify-center gap-2 px-6 py-2.5 bg-black text-white rounded-lg hover:bg-gray-900 transition-colors"
+          className="w-full flex items-center justify-center gap-2 px-6 py-2.5 bg-black text-white rounded-lg hover:bg-gray-900 transition-colors disabled:bg-gray-700 disabled:cursor-not-allowed"
+          disabled={isLoading}
         >
-          {/* Replaced FontAwesomeIcon with simple text */}
+          <MdEmail size={20} />
           Log in with Email
         </button>
         
         <button
           onClick={() => onSocialLogin?.('google')}
-          className="w-full flex items-center justify-center gap-2 px-6 py-2.5 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          className="w-full flex items-center justify-center gap-2 px-6 py-2.5 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
+          disabled={isLoading}
         >
-          {/* Replaced FontAwesomeIcon with simple text */}
+          <FcGoogle size={20} />
           Log in with Google
         </button>
-                
+                  
         <button
           onClick={() => onSocialLogin?.('apple')}
-          className="w-full flex items-center justify-center gap-2 px-6 py-2.5 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          className="w-full flex items-center justify-center gap-2 px-6 py-2.5 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
+          disabled={isLoading}
         >
-          {/* Replaced FontAwesomeIcon with simple text */}
+          <FaApple size={20} />
           Log in with Apple
         </button>
       </div>
@@ -48,7 +51,8 @@ const LoginOptions: React.FC<LoginOptionsProps> = ({
         Don&apos;t have an account?{' '}
         <button 
           onClick={onSignUpClick}
-          className="text-blue-600 hover:underline font-medium"
+          className="text-blue-600 hover:underline font-medium disabled:text-blue-400 disabled:no-underline disabled:cursor-not-allowed"
+          disabled={isLoading}
         >
           Sign up
         </button>

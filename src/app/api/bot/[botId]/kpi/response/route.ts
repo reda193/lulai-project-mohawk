@@ -122,7 +122,8 @@ export async function GET(
         select: {
           id: true,
           bot_name: true,
-          model_type: true
+          model_type: true,
+          creator_id: true  // Always include creator_id in the selection
         }
       });
     }
@@ -179,6 +180,7 @@ export async function GET(
       id: bot.id,
       name: bot.bot_name,
       modelType: bot.model_type,
+      userId: bot.creator_id,  // Always include the userId (creator_id) in the response
       ...(ownerInfo ? { owner: ownerInfo } : {})
     };
 

@@ -17,6 +17,7 @@ const EscalationRateChart: React.FC<EscalationRateChartProps> = ({ timeRange, bo
   const [error, setError] = useState<string | null>(null);
   const [totalEscalations, setTotalEscalations] = useState<number>(0);
   const [escalationRate, setEscalationRate] = useState<number>(0);
+  const [totalConversations, setTotalConversations] = useState<number>(0);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -69,17 +70,16 @@ const EscalationRateChart: React.FC<EscalationRateChartProps> = ({ timeRange, bo
         // Set metrics
         setEscalationRate(responseData.summary.escalationRate);
         setTotalEscalations(responseData.summary.escalatedConversations);
+        setTotalConversations(responseData.summary.totalConversations || 0);
       } catch (err: any) {
         console.error('Error fetching escalation data:', err);
         setError(err instanceof Error ? err.message : 'Failed to fetch escalation data');
         
-        // Use mock data for development
-        setData([
-          { name: 'Escalated', value: 10 },
-          { name: 'Resolved by Bot', value: 90 }
-        ]);
-        setEscalationRate(10);
-        setTotalEscalations(25);
+        // Reset data instead of using mock data
+        setData([]);
+        setEscalationRate(0);
+        setTotalEscalations(0);
+        setTotalConversations(0);
       } finally {
         setLoading(false);
       }
@@ -105,6 +105,19 @@ const EscalationRateChart: React.FC<EscalationRateChartProps> = ({ timeRange, bo
       <div className="h-72 flex items-center justify-center">
         <div className="text-center px-5 py-3">
           <div className="text-gray-500">{error}</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Check if there's no real data
+  const hasNoData = totalConversations === 0 || (totalEscalations === 0 && escalationRate === 0);
+
+  if (hasNoData) {
+    return (
+      <div className="h-72 flex items-center justify-center">
+        <div className="text-center px-5 py-3">
+          <div className="text-gray-500">No Esclation Rate data is available for this bot and time period</div>
         </div>
       </div>
     );

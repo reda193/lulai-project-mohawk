@@ -1,69 +1,123 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from 'recharts';
 
 interface UnrecognizedQueriesChartProps {
   timeRange: '7d' | '30d' | '90d';
+  botId?: string; // Added botId prop
 }
 
-// Seeded random number generator
-function seededRandom(seed: number) {
-  const x = Math.sin(seed) * 10000;
-  return x - Math.floor(x);
-}
+const UnrecognizedQueriesChart: React.FC<UnrecognizedQueriesChartProps> = ({ timeRange, botId }) => {
+  const [data, setData] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [totalQueries, setTotalQueries] = useState<number>(0);
 
-const UnrecognizedQueriesChart: React.FC<UnrecognizedQueriesChartProps> = ({ timeRange }) => {
-  // Generate top unrecognized query types
-  const data = useMemo(() => {
-    // Use a consistent seed based on time range
-    const seedMap = {
-      '7d': 1,
-      '30d': 2,
-      '90d': 3
+  useEffect(() => {
+    const fetchData = async () => {
+      // If no botId is provided, show selection message and don't fetch
+      if (!botId) {
+        setLoading(false);
+        setError("Please select a bot to view unrecognized queries data");
+        return;
+      }
+      console.log('BotId: ', botId)
+
+      try {
+        setLoading(true);
+        setError(null);
+        
+        // Determine the date range based on timeRange prop
+        const endDate = new Date();
+        const startDate = new Date();
+        
+        switch (timeRange) {
+          case '7d': 
+            startDate.setDate(endDate.getDate() - 7);
+            break;
+          case '30d':
+            startDate.setDate(endDate.getDate() - 30);
+            break;
+          case '90d':
+            startDate.setDate(endDate.getDate() - 90);
+            break;
+          default:
+            startDate.setDate(endDate.getDate() - 7);
+        }
+        // Construct the API URL with query parameters
+        const url = `/api/bot/${botId}/kpi/unrecognized?startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}`;
+
+        console.log('Fetching unrecognized queries data from:', url);
+        
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+          throw new Error(`API returned ${response.status}: ${response.statusText}`);
+        }
+        
+        const responseData = await response.json();
+        console.log('Unrecognized queries data received:', responseData);
+        
+        // Set the total number of unrecognized queries
+        setTotalQueries(responseData.summary?.totalUnrecognizedQueries || 0);
+        
+        // Transform API response data for the chart - note the property name changes
+        // The API returns { category, count, percentage } but we need { name, value }
+        if (responseData.categories && responseData.categories.length > 0) {
+          const chartData = responseData.categories.map((item: any) => ({
+            name: item.category, // Changed from category.name to match API
+            value: item.count // Changed from category.count to match API
+          })).sort((a: any, b: any) => b.value - a.value).slice(0, 5); // Top 5 categories
+          
+          setData(chartData);
+        } else {
+          setData([]);
+        }
+      } catch (err: any) {
+        console.error('Error fetching unrecognized queries data:', err);
+        setError(err instanceof Error ? err.message : 'Failed to fetch unrecognized queries data');
+        setData([]);
+        setTotalQueries(0);
+      } finally {
+        setLoading(false);
+      }
     };
-    const baseSeed = seedMap[timeRange] || 1;
-
-    const categories = [
-      { name: 'Product Specs', baseValue: 35 },
-      { name: 'Returns Policy', baseValue: 25 },
-      { name: 'Shipping Options', baseValue: 20 },
-      { name: 'Account Issues', baseValue: 15 },
-      { name: 'Payment Methods', baseValue: 10 },
-    ];
     
-    // Randomize consistently based on seed and timeRange
-    return categories.map((item, index) => {
-      const seed = baseSeed + index;
-      const variationFactor = seededRandom(seed);
-      const timeRangeFactor = 
-        timeRange === '7d' ? -5 : 
-        timeRange === '90d' ? 5 : 
-        0;
-      
-      return {
-        name: item.name,
-        value: Math.max(5, item.baseValue + timeRangeFactor + Math.floor(variationFactor * 10) - 5)
-      };
-    });
-  }, [timeRange]);
+    fetchData();
+  }, [timeRange, botId]);
 
   const COLORS = ['#F97316', '#FB923C', '#FDBA74', '#FED7AA', '#FFEDD5'];
-  
-  // Calculate total unrecognized queries
-  const totalQueries = useMemo(() => {
-    // Use a consistent seed based on time range
-    const seedMap = {
-      '7d': 1,
-      '30d': 2,
-      '90d': 3
-    };
-    const seed = seedMap[timeRange] || 1;
 
-    // Generate a number based on time range
-    const baseCount = timeRange === '7d' ? 20 : timeRange === '30d' ? 85 : 220;
-    return baseCount + Math.floor(seededRandom(seed) * (baseCount / 2));
-  }, [timeRange]);
+  if (loading) {
+    return (
+      <div className="h-72 flex items-center justify-center">
+        <div className="text-center px-5 py-3">
+          <div className="text-gray-500">Loading unrecognized queries data...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="h-72 flex items-center justify-center">
+        <div className="text-center px-5 py-3">
+          <div className="text-gray-500">{error}</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (data.length === 0 || totalQueries === 0) {
+    return (
+      <div className="h-72 flex items-center justify-center">
+        <div className="text-center px-5 py-3">
+          <div className="text-gray-500">NO UNRECOGNIZED QUERIES DATA IS AVAILABLE FOR THIS BOT AND TIME PERIOD</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-72">

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { ArrowLeft } from 'lucide-react';
 import { EmailLoginFormProps } from './types';
 
 const EmailLoginForm: React.FC<EmailLoginFormProps> = ({ onSubmit, onBack }) => {
@@ -14,19 +15,19 @@ const EmailLoginForm: React.FC<EmailLoginFormProps> = ({ onSubmit, onBack }) => 
 
   return (
     <>
-      <div className="text-center">
+      <div className="text-center relative">
         <button
           onClick={onBack}
-          className="absolute left-6 top-6 text-gray-600 hover:text-gray-900"
+          className="absolute left-0 top-0 text-gray-600 hover:text-gray-900 p-1 rounded-full hover:bg-gray-100"
+          aria-label="Go back"
         >
-          {/* Replaced FontAwesomeIcon with simple text */}
-          &#8592; {/* Left Arrow Character */}
+          <ArrowLeft size={20} />
         </button>
         <h2 className="text-2xl font-semibold">Welcome back</h2>
         <p className="text-sm text-gray-500 mt-2">Log in with email</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4 mt-6">
         <div className="space-y-2">
           <label htmlFor="email" className="block text-sm font-medium text-gray-700">
             Email
@@ -63,7 +64,7 @@ const EmailLoginForm: React.FC<EmailLoginFormProps> = ({ onSubmit, onBack }) => 
         </button>
       </form>
 
-      <div className="text-center text-sm">
+      <div className="text-center text-sm mt-4">
         <a href="#" className="text-blue-600 hover:underline">
           Forgot password?
         </a>

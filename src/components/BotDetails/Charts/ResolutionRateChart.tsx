@@ -45,15 +45,6 @@ const ResolutionRateChart: React.FC<ResolutionRateChartProps> = ({ timeRange, bo
             startDate.setDate(endDate.getDate() - 7);
         }
         
-        // Determine the appropriate timeFrame parameter based on timeRange
-        let timeFrame = 'daily';
-        if (timeRange === '90d') {
-          timeFrame = 'weekly';
-        } else if (timeRange === '30d' && startDate.getDate() !== endDate.getDate()) {
-          // If the range spans more than a month, use weekly grouping
-          timeFrame = 'weekly';
-        }
-        
         // Construct the API URL with query parameters
         const url = `/api/bot/${botId}/kpi/resolution?startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}`;
 
@@ -80,19 +71,9 @@ const ResolutionRateChart: React.FC<ResolutionRateChartProps> = ({ timeRange, bo
           // Format the date for display
           let formattedDate;
           
-          if (timeFrame === 'weekly') {
-            // For weekly data, format as "Week X"
-            if (trend.period.includes('W')) {
-              const weekNum = trend.period.split('W')[1];
-              formattedDate = `Week ${weekNum}`;
-            } else {
-              formattedDate = trend.period;
-            }
-          } else if (timeFrame === 'monthly') {
-            // For monthly data, format as "Mon YYYY"
-            const [year, month] = trend.period.split('-');
-            const date = new Date(parseInt(year), parseInt(month) - 1, 1);
-            formattedDate = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+          if (trend.period.includes('W')) {
+            const weekNum = trend.period.split('W')[1];
+            formattedDate = `Week ${weekNum}`;
           } else {
             // For daily data, format as "Mon DD"
             const date = new Date(trend.period);
@@ -138,11 +119,14 @@ const ResolutionRateChart: React.FC<ResolutionRateChartProps> = ({ timeRange, bo
     );
   }
 
-  if (data.length === 0) {
+  // Check if data is empty OR if all data points have 0% resolution rate
+  const hasNoData = data.length === 0 || data.every(item => item.rate === 0);
+  
+  if (hasNoData) {
     return (
       <div className="h-72 flex items-center justify-center">
         <div className="text-center px-5 py-3">
-          <div className="text-gray-500">No resolution data available for this bot and time period</div>
+          <div className="text-gray-500">No Resolution Rate data is available for this bot and time period</div>
         </div>
       </div>
     );
@@ -159,7 +143,7 @@ const ResolutionRateChart: React.FC<ResolutionRateChartProps> = ({ timeRange, bo
           tick={{ fontSize: 12, fill: '#6B7280' }}
         />
         <YAxis 
-          domain={[60, 100]}
+          domain={[0, 100]}
           axisLine={false}
           tickLine={false}
           tick={{ fontSize: 12, fill: '#6B7280' }}

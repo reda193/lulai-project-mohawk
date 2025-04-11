@@ -111,7 +111,7 @@ const SessionVolumeChart: React.FC<SessionVolumeChartProps> = ({ timeRange, botI
     return (
       <div className="h-72 flex items-center justify-center">
         <div className="text-center text-gray-500">
-          {error || "No session data available"}
+          {error || "No session data is available for this bot and time period"}
         </div>
       </div>
     );

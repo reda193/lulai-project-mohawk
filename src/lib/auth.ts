@@ -15,7 +15,8 @@ export const authOptions: NextAuthOptions = {
     },
     pages: {
         signIn: '/login',
-        signOut: '/'
+        signOut: '/',
+        error: '/login' // Add this to handle error display
     },
     providers: [
         GoogleProvider({
@@ -54,7 +55,7 @@ export const authOptions: NextAuthOptions = {
                     
                     if (!credentials?.email || !credentials?.password) {
                         console.error("Missing credentials");
-                        return null;
+                        throw new Error("Please enter your email and password");
                     }
                     
                     // Find user with case-insensitive email search
@@ -78,12 +79,12 @@ export const authOptions: NextAuthOptions = {
             
                     if (!existingUser) {
                         console.error("User not found with email:", credentials.email);
-                        return null;
+                        throw new Error("No account found with this email");
                     }
             
                     if (!existingUser.password) {
                         console.error("User has no password (likely Google login):", existingUser.email);
-                        return null;
+                        throw new Error("Please use Google login for this account");
                     }
             
                     const passwordMatch = await compare(credentials.password, existingUser.password);
@@ -91,11 +92,10 @@ export const authOptions: NextAuthOptions = {
             
                     if (!passwordMatch) {
                         console.error("Invalid password for user:", existingUser.email);
-                        return null;
+                        throw new Error("Invalid email or password");
                     }
             
                     console.log(`User logged in successfully: ${existingUser.email}`);
-                    console.log(existingUser); // Log full user object to see onboarding data
                     
                     return {
                         id: existingUser.userId,
@@ -119,8 +119,11 @@ export const authOptions: NextAuthOptions = {
                         }
                     };
                 } catch (error) {
-                    console.error("Auth error:", error);
-                    return null;
+                    // Rethrow the error with the message so it gets passed to the client
+                    if (error instanceof Error) {
+                        throw new Error(error.message);
+                    }
+                    throw new Error("An unexpected error occurred");
                 }
             }
         })
@@ -136,21 +139,7 @@ export const authOptions: NextAuthOptions = {
                 token.discoverySource = user.discoverySource;
                 token.switchingFrom = user.switchingFrom;
                 token.subscription = user.subscription;
-                
-                console.log("JWT callback - user data:", {
-                    hasCompletedOnboarding: user.hasCompletedOnboarding,
-                    discoverySource: user.discoverySource,
-                    switchingFrom: user.switchingFrom
-                });
             }
-            
-            // Always log the token to see what it contains
-            console.log("JWT callback - token data:", {
-                hasCompletedOnboarding: token.hasCompletedOnboarding,
-                discoverySource: token.discoverySource,
-                switchingFrom: token.switchingFrom
-            });
-            
             return token;
         },
         async session({ session, token }) {
@@ -163,13 +152,6 @@ export const authOptions: NextAuthOptions = {
                 session.user.discoverySource = token.discoverySource;
                 session.user.switchingFrom = token.switchingFrom;
                 session.user.subscription = token.subscription;
-                
-                // Log the session to verify data is transferred
-                console.log("Session callback - session data:", {
-                    hasCompletedOnboarding: session.user.hasCompletedOnboarding,
-                    discoverySource: session.user.discoverySource,
-                    switchingFrom: session.user.switchingFrom
-                });
             }
             return session;
         },

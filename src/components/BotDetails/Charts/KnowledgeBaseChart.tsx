@@ -66,6 +66,10 @@ const KnowledgeBaseChart: React.FC<KnowledgeBaseChartProps> = ({ timeRange, botI
       } catch (err: any) {
         console.error('Error fetching knowledge base data:', err);
         setError(err.message || 'Failed to fetch knowledge base data');
+        // Reset data on error
+        setKbUtilizationPercentage(0);
+        setTotalResponses(0);
+        setKbResponses(0);
         setLoading(false);
       }
     };
@@ -100,6 +104,17 @@ const KnowledgeBaseChart: React.FC<KnowledgeBaseChartProps> = ({ timeRange, botI
     return (
       <div className="h-72 flex items-center justify-center">
         <div className="text-gray-500">{error}</div>
+      </div>
+    );
+  }
+
+  // Check if there's no data to display
+  if (totalResponses === 0) {
+    return (
+      <div className="h-72 flex items-center justify-center">
+        <div className="text-center px-5 py-3">
+          <div className="text-gray-500">No knowledge base utilization data is available for this bot and time period</div>
+        </div>
       </div>
     );
   }
